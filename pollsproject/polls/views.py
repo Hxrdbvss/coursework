@@ -24,7 +24,7 @@ def detail(request, survey_id):
                 choice_id = request.POST.get(f'question_{question.id}')
                 if choice_id:
                     choice = get_object_or_404(Choice, pk=choice_id, question=question)
-                    Answer.objects.create(question=question, choice=choice)
+                    Answer.objects.create(question=question, choice=choice, user=request.user)
                 else:
                     context['error_message'] = f'Выберите вариант для вопроса "{question.text}"'
                     return render(request, 'polls/detail.html', context)
@@ -33,14 +33,14 @@ def detail(request, survey_id):
                 if choice_ids:
                     for choice_id in choice_ids:
                         choice = get_object_or_404(Choice, pk=choice_id, question=question)
-                        Answer.objects.create(question=question, choice=choice)
+                        Answer.objects.create(question=question, choice=choice, user=request.user)
                 else:
                     context['error_message'] = f'Выберите хотя бы один вариант для вопроса "{question.text}"'
                     return render(request, 'polls/detail.html', context)
             elif question.question_type == 'text':
                 text_answer = request.POST.get(f'question_{question.id}')
                 if text_answer and text_answer.strip():
-                    Answer.objects.create(question=question, text_answer=text_answer)
+                    Answer.objects.create(question=question, text_answer=text_answer, user=request.user)
                 else:
                     context['error_message'] = f'Введите текст для вопроса "{question.text}"'
                     return render(request, 'polls/detail.html', context)
@@ -126,10 +126,15 @@ def register(request):
 
 def profile(request, username):
     profile = get_object_or_404(User, username=username)
-    surveys = Survey.objects.filter(id__in=Answer.objects.filter(question__survey__in=Survey.objects.all()).values('question__survey').distinct())  # Опросы, в которых участвовал пользователь
+    # Получаем все ответы пользователя
+    user_answers = Answer.objects.filter(user=profile).select_related('question__survey')
+    # Извлекаем уникальные опросы, в которых пользователь участвовал
+    surveys = Survey.objects.filter(questions__answers__user=profile).distinct()
+    
     context = {
         'profile': profile,
         'surveys': surveys,
+        'user_answers': user_answers,  # Передаем ответы пользователя
     }
     return render(request, 'polls/profile.html', context)
 
