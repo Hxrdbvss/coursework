@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}Редактировать: {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>Редактировать опрос</h1>
+    <form method="post" id="editForm">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="survey_title" class="form-label">Название опроса</label>
+            <input type="text" class="form-control" id="survey_title" name="survey_title" value="{{ survey.title }}" required>
+        </div>
+
+        <div id="questions">
+            {% for question in survey.questions.all %}
+                <div class="question mb-4 p-3 border rounded bg-light" data-question-id="{{ question.id }}">
+                    <div class="mb-3 d-flex justify-content-between">
+                        <label class="form-label">Текст вопроса</label>
+                        <button type="button" class="btn btn-danger btn-sm delete-question"><i class="bi bi-trash"></i></button>
+                    </div>
+                    <input type="text" class="form-control" name="question_text_{{ question.id }}" value="{{ question.text }}" required>
+                    <div class="mb-3">
+                        <label class="form-label">Тип вопроса</label>
+                        <select class="form-select question-type" name="question_type_{{ question.id }}">
+                            <option value="radio" {% if question.question_type == 'radio' %}selected{% endif %}>Один выбор</option>
+                            <option value="checkbox" {% if question.question_type == 'checkbox' %}selected{% endif %}>Множественный выбор</option>
+                            <option value="text" {% if question.question_type == 'text' %}selected{% endif %}>Текстовый ответ</option>
+                        </select>
+                    </div>
+                    {% if question.question_type == 'radio' or question.question_type == 'checkbox' %}
+                        <div class="choices">
+                            <label class="form-label">Варианты ответа</label>
+                            {% for choice in question.choices.all %}
+                                <div class="input-group mb-2 choice-item">
+                                    <input type="text" class="form-control" name="choice_text_{{ question.id }}" value="{{ choice.text }}" required>
+                                    <input type="hidden" name="choice_id_{{ question.id }}_{{ choice.text }}" value="{{ choice.id }}">
+                                    <button type="button" class="btn btn-outline-danger delete-choice"><i class="bi bi-trash"></i></button>
+                                </div>
+                            {% endfor %}
+                            <button type="button" class="btn btn-outline-primary add-choice mt-2">Добавить вариант</button>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <button type="button" class="btn btn-outline-success mb-3" id="addQuestion">Добавить вопрос</button>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Сохранить</button>
+            <a href="{% url 'polls:index' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Назад</a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModalEdit">
+                <i class="bi bi-trash"></i> Удалить опрос
+            </button>
+        </div>
+    </form>
+
+    <div class="modal fade" id="deleteModalEdit" tabindex="-1" aria-labelledby="deleteModalEditLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalEditLabel">Удалить опрос</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Вы уверены, что хотите удалить опрос "{{ survey.title }}"?
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" name="delete_survey" form="editForm" class="btn btn-danger">Да, удалить</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let questionCounter = {{ survey.questions.all|length }};
+
+    document.getElementById('addQuestion').addEventListener('click', function() {
+        const questionsDiv = document.getElementById('questions');
+        const newQuestion = document.createElement('div');
+        newQuestion.className = 'question mb-4 p-3 border rounded bg-light';
+        newQuestion.innerHTML = `
+            <div class="mb-3 d-flex justify-content-between">
+                <label class="form-label">Текст вопроса</label>
+                <button type="button" class="btn btn-danger btn-sm delete-question"><i class="bi bi-trash"></i></button>
+            </div>
+            <input type="text" class="form-control" name="question_text_new_${questionCounter}" required>
+            <div class="mb-3">
+                <label class="form-label">Тип вопроса</label>
+                <select class="form-select question-type" name="question_type_new_${questionCounter}">
+                    <option value="radio">Один выбор</option>
+                    <option value="checkbox">Множественный выбор</option>
+                    <option value="text">Текстовый ответ</option>
+                </select>
+            </div>
+            <div class="choices" style="display: none;">
+                <label class="form-label">Варианты ответа</label>
+                <div class="input-group mb-2 choice-item">
+                    <input type="text" class="form-control" name="choice_text_new_${questionCounter}" required>
+                    <button type="button" class="btn btn-outline-danger delete-choice"><i class="bi bi-trash"></i></button>
+                </div>
+                <button type="button" class="btn btn-outline-primary add-choice mt-2">Добавить вариант</button>
+            </div>
+        `;
+        questionsDiv.appendChild(newQuestion);
+        questionCounter++;
+        attachEventListeners(newQuestion);
+    });
+
+    function addChoiceHandler(e) {
+        const choicesDiv = e.target.previousElementSibling.parentElement;
+        const questionId = choicesDiv.closest('.question').dataset.questionId || `new_${questionCounter - 1}`;
+        const newChoice = document.createElement('div');
+        newChoice.className = 'input-group mb-2 choice-item';
+        newChoice.innerHTML = `
+            <input type="text" class="form-control" name="choice_text_${questionId}" required>
+            <button type="button" class="btn btn-outline-danger delete-choice"><i class="bi bi-trash"></i></button>
+        `;
+        choicesDiv.insertBefore(newChoice, e.target);
+    }
+
+    function deleteQuestionHandler(e) {
+        e.target.closest('.question').remove();
+    }
+
+    function deleteChoiceHandler(e) {
+        e.target.closest('.choice-item').remove();
+    }
+
+    function toggleChoices(select) {
+        const choicesDiv = select.closest('.question').querySelector('.choices');
+        if (select.value === 'text') {
+            choicesDiv.style.display = 'none';
+        } else {
+            choicesDiv.style.display = 'block';
+        }
+    }
+
+    function attachEventListeners(element) {
+        element.querySelectorAll('.add-choice').forEach(btn => btn.addEventListener('click', addChoiceHandler));
+        element.querySelectorAll('.delete-question').forEach(btn => btn.addEventListener('click', deleteQuestionHandler));
+        element.querySelectorAll('.delete-choice').forEach(btn => btn.addEventListener('click', deleteChoiceHandler));
+        element.querySelectorAll('.question-type').forEach(select => {
+            select.addEventListener('change', () => toggleChoices(select));
+            toggleChoices(select);
+        });
+    }
+
+    document.querySelectorAll('.question').forEach(attachEventListeners);
+});
+</script>
+{% endblock %}

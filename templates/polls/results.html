@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Результаты: {{ survey.title }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>Результаты: {{ survey.title }}</h1>
+    
+    <div class="alert alert-success mt-3" role="alert">
+        <h4 class="alert-heading">Спасибо за участие!</h4>
+        <p>Ваши ответы успешно приняты.</p>
+    </div>
+    
+    <!-- Показываем ответы пользователя -->
+    <div class="mb-4">
+        <h2>Ваши ответы</h2>
+        {% if user_answers %}
+            <ul class="list-group">
+                {% for answer in user_answers %}
+                    <li class="list-group-item">
+                        <strong>{{ answer.question.text }}</strong>:
+                        {% if answer.choice %}
+                            {% if answer.question.question_type == 'checkbox' %}
+                                {{ answer.choice|join:", " }}
+                            {% else %}
+                                {{ answer.choice }}
+                            {% endif %}
+                        {% else %}
+                            {{ answer.text_answer }}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Вы ещё не ответили на этот опрос.</p>
+        {% endif %}
+    </div>
+    
+    <a href="{% url 'polls:index' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Назад к списку</a>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %}

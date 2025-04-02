@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Добавить вопросы - {{ survey.title }}{% endblock %}
+{% block content %}
+<h1 class="mb-4">Добавить вопросы к "{{ survey.title }}"</h1>
+<form method="post" class="col-md-8" id="questionForm">
+    {% csrf_token %}
+    {{ question_formset.management_form }}
+    <div id="questions-container">
+        {% for question_form in question_formset %}
+            <div class="question-form mb-4 p-3 border rounded" data-prefix="{{ question_form.prefix }}">
+                {{ question_form.id }}
+                <div class="mb-3">{{ question_form.text }}</div>
+                <div class="mb-3">{{ question_form.question_type }}</div>
+                <div class="choices-section" {% if question_form.question_type.value == 'text' %}style="display: none;"{% endif %}>
+                    <h4>Варианты ответа</h4>
+                    {% with choice_formset=choice_formsets|slice:forloop.counter0|first %}
+                        {{ choice_formset.management_form }}
+                        <div class="choices-container" data-prefix="{{ choice_formset.prefix }}">
+                            {% for choice_form in choice_formset %}
+                                <div class="choice-form mb-2">
+                                    {{ choice_form.id }}
+                                    {{ choice_form.text }}
+                                </div>
+                            {% empty %}
+                                <div class="choice-form mb-2">
+                                    <input type="text" name="{{ choice_formset.prefix }}-0-text" class="form-control" id="id_{{ choice_formset.prefix }}-0-text" value="">
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-secondary add-choice mt-2" data-prefix="{{ choice_formset.prefix }}">Добавить вариант</button>
+                    {% endwith %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    <button type="button" class="btn btn-secondary mb-3" id="addQuestion">Добавить вопрос</button>
+    <button type="submit" class="btn btn-primary mt-3">Сохранить вопросы</button>
+</form>
+<a href="{% url 'polls:index' %}" class="btn btn-secondary mt-2">Завершить создание</a>
+
+<script>
+const questionTemplate = `
+    <div class="question-form mb-4 p-3 border rounded" data-prefix="questions-__prefix__">
+        <input type="hidden" name="questions-__prefix__-id" id="id_questions-__prefix__-id">
+        <div class="mb-3">
+            <label for="id_questions-__prefix__-text">Текст вопроса:</label>
+            <input type="text" name="questions-__prefix__-text" class="form-control" id="id_questions-__prefix__-text">
+        </div>
+        <div class="mb-3">
+            <label for="id_questions-__prefix__-question_type">Тип вопроса:</label>
+            <select name="questions-__prefix__-question_type" class="form-control" id="id_questions-__prefix__-question_type">
+                <option value="radio">Один выбор (radio)</option>
+                <option value="checkbox">Множественный выбор (checkbox)</option>
+                <option value="text">Текстовый ответ</option>
+            </select>
+        </div>
+        <div class="choices-section">
+            <h4>Варианты ответа</h4>
+            <div class="choices-container" data-prefix="choices-questions-__prefix__">
+                <input type="hidden" name="choices-questions-__prefix__-TOTAL_FORMS" value="1" id="id_choices-questions-__prefix__-TOTAL_FORMS">
+                <input type="hidden" name="choices-questions-__prefix__-INITIAL_FORMS" value="0">
+                <input type="hidden" name="choices-questions-__prefix__-MIN_NUM_FORMS" value="0">
+                <input type="hidden" name="choices-questions-__prefix__-MAX_NUM_FORMS" value="1000">
+                <div class="choice-form mb-2">
+                    <input type="text" name="choices-questions-__prefix__-0-text" class="form-control" id="id_choices-questions-__prefix__-0-text">
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary add-choice mt-2" data-prefix="choices-questions-__prefix__">Добавить вариант</button>
+        </div>
+    </div>`;
+
+const choiceTemplate = `<div class="choice-form mb-2"><input type="text" name="CHOICE_PREFIX-text" class="form-control" id="id_CHOICE_PREFIX-text"></div>`;
+
+document.getElementById('addQuestion').addEventListener('click', function() {
+    const container = document.getElementById('questions-container');
+    const totalForms = document.getElementById('id_questions-TOTAL_FORMS');
+    if (!totalForms) {
+        console.error('Management form element not found!');
+        return;
+    }
+    const newIndex = parseInt(totalForms.value);
+    
+    const newQuestion = document.createElement('div');
+    newQuestion.innerHTML = questionTemplate.replace(/__prefix__/g, newIndex);
+    container.appendChild(newQuestion);
+    
+    totalForms.value = newIndex + 1;
+    attachListeners();
+});
+
+function attachListeners() {
+    document.querySelectorAll('.question-form').forEach(questionElement => {
+        const addChoiceButton = questionElement.querySelector('.add-choice');
+        const prefix = addChoiceButton.getAttribute('data-prefix');
+        addChoiceButton.onclick = null;
+        addChoiceButton.addEventListener('click', function() {
+            const container = questionElement.querySelector(`.choices-container[data-prefix="${prefix}"]`);
+            const totalForms = questionElement.querySelector(`#id_${prefix}-TOTAL_FORMS`);
+            const newIndex = parseInt(totalForms.value);
+            
+            const newChoice = document.createElement('div');
+            newChoice.innerHTML = choiceTemplate.replace(/CHOICE_PREFIX/g, `${prefix}-${newIndex}`);
+            container.appendChild(newChoice);
+            
+            totalForms.value = newIndex + 1;
+        });
+
+        const typeSelect = questionElement.querySelector('select[name$="question_type"]');
+        const choicesSection = questionElement.querySelector('.choices-section');
+        typeSelect.onchange = null;
+        typeSelect.addEventListener('change', function() {
+            choicesSection.style.display = this.value === 'text' ? 'none' : 'block';
+        });
+    });
+}
+
+attachListeners();
+</script>
+{% endblock %}

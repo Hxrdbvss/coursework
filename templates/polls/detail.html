@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}{{ survey.title }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ survey.title }}</h1>
+    {% if error_message %}
+        <div class="alert alert-danger">{{ error_message }}</div>
+    {% endif %}
+    <form action="{% url 'polls:detail' survey.id %}" method="post" id="surveyForm">
+        {% csrf_token %}
+        {% for question in survey.questions.all %}
+            <div class="mb-4 p-3 border rounded bg-light">
+                <h3>{{ question.text }}</h3>
+                {% if question.question_type == 'radio' %}
+                    {% for choice in question.choices.all %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
+                            <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
+                        </div>
+                    {% endfor %}
+                {% elif question.question_type == 'checkbox' %}
+                    {% for choice in question.choices.all %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
+                            <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
+                        </div>
+                    {% endfor %}
+                {% elif question.question_type == 'text' %}
+                    <textarea class="form-control" name="question_{{ question.id }}" rows="3" placeholder="Введите ваш ответ"></textarea>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Отправить ответы</button>
+            <a href="{% url 'polls:index' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Назад к списку</a>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="thanksModal" tabindex="-1" aria-labelledby="thanksModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="thanksModalLabel">Спасибо за участие!</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Ваши ответы успешно приняты.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if show_thanks %}
+            const modal = new bootstrap.Modal(document.getElementById('thanksModal'));
+            modal.show();
+        {% endif %}
+    });
+</script>
+{% endblock %}
