@@ -2,263 +2,172 @@
 {% block title %}Создать опрос{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">Создать новый опрос</h1>
+    <h1>Создать новый опрос</h1>
     {% if error %}
         <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
     <form method="post" id="surveyForm">
         {% csrf_token %}
         <div class="mb-3">
-            <label for="surveyTitle" class="form-label">Название опроса:</label>
-            <input type="text" name="title" id="surveyTitle" class="form-control" placeholder="Введите название опроса" required>
+            <label for="title" class="form-label">Название опроса</label>
+            <input type="text" class="form-control" id="title" name="title" required>
         </div>
 
-        <h2>Вопросы</h2>
-        <div id="questions-container" class="mb-3"></div>
-        <button type="button" class="btn btn-success mb-3" id="addQuestion"><i class="bi bi-plus"></i> Добавить вопрос</button>
+        <div id="questions">
+            <div class="question mb-4 p-3 border rounded bg-light" data-question-index="0">
+                <div class="mb-3">
+                    <label class="form-label">Вопрос 1</label>
+                    <input type="text" class="form-control" name="question-0-text" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Тип вопроса</label>
+                    <select class="form-select question-type" name="question-0-type" onchange="toggleChoices(this)">
+                        <option value="radio">Один выбор</option>
+                        <option value="checkbox">Множественный выбор</option>
+                        <option value="text">Текстовый ответ</option>
+                        <option value="rating">Шкала оценки</option>
+                        <option value="yesno">Да/Нет</option>
+                        <option value="ranking">Ранжирование</option>
+                    </select>
+                </div>
+                <div class="choices">
+                    <label class="form-label">Варианты ответа</label>
+                    <div class="choice-list">
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" name="choice-0-0-text">
+                            <button type="button" class="btn btn-outline-danger remove-choice">Удалить</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary add-choice">Добавить вариант</button>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-outline-success mb-3" id="addQuestion">Добавить вопрос</button>
         <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Сохранить опрос</button>
     </form>
 </div>
 
-<!-- Модальное окно для подтверждения -->
-<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="confirmDeleteModalLabel">Подтверждение удаления</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Вы уверены, что хотите удалить этот элемент?
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Удалить</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-// Шаблон для нового вопроса
-const questionTemplate = `
-    <div class="question-form mb-4 p-3 border rounded bg-light" data-question-index="QUESTION_INDEX" draggable="true">
+let questionCounter = 1;
+
+function toggleChoices(select) {
+    const choicesDiv = select.parentElement.nextElementSibling;
+    const choiceList = choicesDiv.querySelector('.choice-list');
+    const questionType = select.value;
+
+    if (['radio', 'checkbox', 'ranking'].includes(questionType)) {
+        choicesDiv.style.display = 'block';
+        // Убедимся, что есть хотя бы один вариант
+        if (choiceList.children.length === 0) {
+            const questionIndex = select.closest('.question').dataset.questionIndex;
+            const newChoice = document.createElement('div');
+            newChoice.className = 'input-group mb-2';
+            newChoice.innerHTML = `
+                <input type="text" class="form-control" name="choice-${questionIndex}-0-text">
+                <button type="button" class="btn btn-outline-danger remove-choice">Удалить</button>
+            `;
+            choiceList.appendChild(newChoice);
+        }
+    } else {
+        choicesDiv.style.display = 'none';
+        // Очищаем все варианты, если тип не требует их
+        while (choiceList.children.length > 0) {
+            choiceList.removeChild(choiceList.lastChild);
+        }
+    }
+}
+
+function addChoiceHandler(btn) {
+    const questionDiv = btn.closest('.question');
+    const questionIndex = questionDiv.dataset.questionIndex;
+    const choiceList = questionDiv.querySelector('.choice-list');
+    const choiceCount = choiceList.querySelectorAll('input').length;
+
+    const newChoice = document.createElement('div');
+    newChoice.className = 'input-group mb-2';
+    newChoice.innerHTML = `
+        <input type="text" class="form-control" name="choice-${questionIndex}-${choiceCount}-text">
+        <button type="button" class="btn btn-outline-danger remove-choice">Удалить</button>
+    `;
+    choiceList.appendChild(newChoice);
+
+    // Привязываем обработчик к новой кнопке "Удалить"
+    newChoice.querySelector('.remove-choice').addEventListener('click', function() {
+        if (choiceList.children.length > 1) { // Оставляем минимум один вариант
+            choiceList.removeChild(newChoice);
+        }
+    });
+}
+
+document.getElementById('addQuestion').addEventListener('click', function() {
+    const questionsDiv = document.getElementById('questions');
+    const newQuestion = document.createElement('div');
+    newQuestion.className = 'question mb-4 p-3 border rounded bg-light';
+    newQuestion.dataset.questionIndex = questionCounter;
+    newQuestion.innerHTML = `
         <div class="mb-3">
-            <label>Текст вопроса:</label>
-            <input type="text" name="question-QUESTION_INDEX-text" class="form-control" placeholder="Введите текст вопроса" required>
+            <label class="form-label">Вопрос ${questionCounter + 1}</label>
+            <input type="text" class="form-control" name="question-${questionCounter}-text" required>
         </div>
         <div class="mb-3">
-            <label>Тип вопроса:</label>
-            <select name="question-QUESTION_INDEX-type" class="form-control question-type">
-                <option value="radio">Один выбор (radio)</option>
-                <option value="checkbox">Множественный выбор (checkbox)</option>
+            <label class="form-label">Тип вопроса</label>
+            <select class="form-select question-type" name="question-${questionCounter}-type" onchange="toggleChoices(this)">
+                <option value="radio">Один выбор</option>
+                <option value="checkbox">Множественный выбор</option>
                 <option value="text">Текстовый ответ</option>
+                <option value="rating">Шкала оценки</option>
+                <option value="yesno">Да/Нет</option>
+                <option value="ranking">Ранжирование</option>
             </select>
         </div>
-        <div class="choices-section">
-            <h4>Варианты ответа</h4>
-            <div class="choices-container" id="choices-QUESTION_INDEX">
-                <div class="choice-form mb-3 d-flex align-items-center">
-                    <input type="text" name="choice-QUESTION_INDEX-0-text" class="form-control me-2" placeholder="Введите первый вариант ответа">
-                    <button type="button" class="btn btn-danger btn-sm remove-choice"><i class="bi bi-x"></i></button>
+        <div class="choices">
+            <label class="form-label">Варианты ответа</label>
+            <div class="choice-list">
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" name="choice-${questionCounter}-0-text">
+                    <button type="button" class="btn btn-outline-danger remove-choice">Удалить</button>
                 </div>
             </div>
-            <button type="button" class="btn btn-secondary add-choice mt-2"><i class="bi bi-plus"></i> Добавить вариант</button>
+            <button type="button" class="btn btn-outline-primary add-choice">Добавить вариант</button>
         </div>
-        <button type="button" class="btn btn-danger remove-question mt-2"><i class="bi bi-trash"></i> Удалить вопрос</button>
-    </div>`;
+    `;
+    questionsDiv.appendChild(newQuestion);
 
-// Шаблон для нового варианта ответа
-const choiceTemplate = `
-    <div class="choice-form mb-3 d-flex align-items-center">
-        <input type="text" name="choice-QUESTION_INDEX-CHOICE_INDEX-text" class="form-control me-2" placeholder="Введите вариант ответа">
-        <button type="button" class="btn btn-danger btn-sm remove-choice"><i class="bi bi-x"></i></button>
-    </div>`;
+    // Привязываем обработчики к новым элементам
+    const newSelect = newQuestion.querySelector('.question-type');
+    toggleChoices(newSelect);
+    newQuestion.querySelector('.add-choice').addEventListener('click', function() {
+        addChoiceHandler(this);
+    });
+    newQuestion.querySelector('.remove-choice').addEventListener('click', function() {
+        const choiceList = newQuestion.querySelector('.choice-list');
+        if (choiceList.children.length > 1) {
+            choiceList.removeChild(this.parentElement);
+        }
+    });
 
-// Счётчик вопросов
-let questionCounter = 0;
-
-// Добавление нового вопроса
-document.getElementById('addQuestion').addEventListener('click', function() {
-    const container = document.getElementById('questions-container');
-    const newQuestion = document.createElement('div');
-    newQuestion.innerHTML = questionTemplate.replace(/QUESTION_INDEX/g, questionCounter);
-    container.appendChild(newQuestion);
     questionCounter++;
-    attachListeners();
 });
 
-// Привязка слушателей
-function attachListeners() {
-    document.querySelectorAll('.add-choice').forEach(button => {
-        button.removeEventListener('click', addChoiceHandler);
-        button.addEventListener('click', addChoiceHandler);
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация первого вопроса
+    document.querySelectorAll('.question-type').forEach(toggleChoices);
 
-    document.querySelectorAll('.remove-question').forEach(button => {
-        button.removeEventListener('click', removeQuestionHandler);
-        button.addEventListener('click', removeQuestionHandler);
-    });
-
-    document.querySelectorAll('.remove-choice').forEach(button => {
-        button.removeEventListener('click', removeChoiceHandler);
-        button.addEventListener('click', removeChoiceHandler);
-    });
-
-    document.querySelectorAll('.question-type').forEach(select => {
-        select.removeEventListener('change', typeChangeHandler);
-        select.addEventListener('change', typeChangeHandler);
-    });
-
-    const questions = document.querySelectorAll('.question-form');
-    questions.forEach(question => {
-        question.removeEventListener('dragstart', dragStartHandler);
-        question.removeEventListener('dragover', dragOverHandler);
-        question.removeEventListener('drop', dropHandler);
-        question.addEventListener('dragstart', dragStartHandler);
-        question.addEventListener('dragover', dragOverHandler);
-        question.addEventListener('drop', dropHandler);
-    });
-}
-
-function addChoiceHandler(event) {
-    const questionForm = event.target.closest('.question-form');
-    const questionIndex = questionForm.getAttribute('data-question-index');
-    const container = document.getElementById(`choices-${questionIndex}`);
-    const choiceIndex = container.querySelectorAll('.choice-form').length;
-    
-    const newChoice = document.createElement('div');
-    newChoice.innerHTML = choiceTemplate
-        .replace(/QUESTION_INDEX/g, questionIndex)
-        .replace(/CHOICE_INDEX/g, choiceIndex);
-    container.appendChild(newChoice);
-    attachListeners();
-}
-
-function showConfirmModal(onConfirm) {
-    const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-    
-    newConfirmBtn.addEventListener('click', function() {
-        onConfirm();
-        modal.hide();
-    });
-    
-    modal.show();
-}
-
-function removeQuestionHandler(event) {
-    const questionForm = event.target.closest('.question-form');
-    showConfirmModal(() => questionForm.remove());
-}
-
-function removeChoiceHandler(event) {
-    const choiceForm = event.target.closest('.choice-form');
-    showConfirmModal(() => choiceForm.remove());
-}
-
-function typeChangeHandler(event) {
-    const questionForm = event.target.closest('.question-form');
-    const choicesSection = questionForm.querySelector('.choices-section');
-    choicesSection.style.display = event.target.value === 'text' ? 'none' : 'block';
-}
-
-let draggedQuestion = null;
-
-function dragStartHandler(event) {
-    draggedQuestion = event.target;
-    event.dataTransfer.effectAllowed = 'move';
-}
-
-function dragOverHandler(event) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-}
-
-function dropHandler(event) {
-    event.preventDefault();
-    const targetQuestion = event.target.closest('.question-form');
-    if (targetQuestion && draggedQuestion !== targetQuestion) {
-        const container = document.getElementById('questions-container');
-        const questions = Array.from(container.querySelectorAll('.question-form'));
-        const draggedIndex = questions.indexOf(draggedQuestion);
-        const targetIndex = questions.indexOf(targetQuestion);
-
-        if (draggedIndex < targetIndex) {
-            targetQuestion.after(draggedQuestion);
-        } else {
-            targetQuestion.before(draggedQuestion);
-        }
-        updateQuestionIndices();
-    }
-}
-
-function updateQuestionIndices() {
-    const questions = document.querySelectorAll('.question-form');
-    questions.forEach((question, index) => {
-        question.setAttribute('data-question-index', index);
-        question.querySelector('input[name$="-text"]').name = `question-${index}-text`;
-        question.querySelector('select[name$="-type"]').name = `question-${index}-type`;
-        const choices = question.querySelectorAll('.choice-form input');
-        choices.forEach((choice, choiceIndex) => {
-            choice.name = `choice-${index}-${choiceIndex}-text`;
+    // Привязка обработчиков к кнопкам "Добавить вариант" и "Удалить" для первого вопроса
+    document.querySelectorAll('.add-choice').forEach(btn => {
+        btn.addEventListener('click', function() {
+            addChoiceHandler(this);
         });
     });
-}
-
-document.getElementById('surveyForm').addEventListener('submit', function(event) {
-    const title = document.getElementById('surveyTitle').value.trim();
-    const questions = document.querySelectorAll('.question-form');
-    
-    if (!title) {
-        event.preventDefault();
-        alert('Пожалуйста, введите название опроса.');
-        return;
-    }
-
-    let hasEmptyFields = false;
-    questions.forEach((question, index) => {
-        const questionText = question.querySelector(`input[name="question-${index}-text"]`).value.trim();
-        const questionType = question.querySelector(`select[name="question-${index}-type"]`).value;
-        if (!questionText) {
-            hasEmptyFields = true;
-        }
-        if (questionType !== 'text') {
-            const choices = question.querySelectorAll('.choice-form input');
-            choices.forEach(choice => {
-                if (!choice.value.trim()) {
-                    hasEmptyFields = true;
-                }
-            });
-        }
+    document.querySelectorAll('.remove-choice').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const choiceList = this.closest('.choices').querySelector('.choice-list');
+            if (choiceList.children.length > 1) {
+                choiceList.removeChild(this.parentElement);
+            }
+        });
     });
-
-    if (hasEmptyFields) {
-        event.preventDefault();
-        alert('Пожалуйста, заполните все поля вопросов и вариантов ответа.');
-    }
 });
-
-attachListeners();
 </script>
-
-<style>
-    .question-form {
-        cursor: move;
-    }
-    .question-form:hover {
-        border-color: #007bff;
-    }
-    .remove-choice {
-        width: 30px;
-        height: 30px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-</style>
 {% endblock %}

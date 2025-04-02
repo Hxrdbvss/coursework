@@ -6,49 +6,106 @@
     {% if error_message %}
         <div class="alert alert-danger">{{ error_message }}</div>
     {% endif %}
-    <form action="{% url 'polls:detail' survey.id %}" method="post" id="surveyForm">
-        {% csrf_token %}
-        {% for question in survey.questions.all %}
-            <div class="mb-4 p-3 border rounded bg-light">
-                <h3>{{ question.text }}</h3>
-                {% if question.question_type == 'radio' %}
-                    {% for choice in question.choices.all %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
-                            <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
-                        </div>
-                    {% endfor %}
-                {% elif question.question_type == 'checkbox' %}
-                    {% for choice in question.choices.all %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
-                            <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
-                        </div>
-                    {% endfor %}
-                {% elif question.question_type == 'text' %}
-                    <textarea class="form-control" name="question_{{ question.id }}" rows="3" placeholder="Введите ваш ответ"></textarea>
-                {% endif %}
-            </div>
-        {% endfor %}
-        <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Отправить ответы</button>
-            <a href="{% url 'polls:index' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Назад к списку</a>
-        </div>
-    </form>
-</div>
 
-<div class="modal fade" id="thanksModal" tabindex="-1" aria-labelledby="thanksModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="thanksModalLabel">Спасибо за участие!</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    {% if user_answers %}
+        <!-- Показываем ответы пользователя -->
+        <h3>Ваши ответы:</h3>
+        <ul class="list-group">
+            {% for answer_data in user_answers %}
+                {% with answer=answer_data.answer %}
+                    <li class="list-group-item">
+                        <strong>{{ answer.question.text }}</strong>:
+                        {% if answer.question.question_type == 'text' %}
+                            {{ answer.text_answer|default:"Нет ответа" }}
+                        {% elif answer.question.question_type == 'rating' %}
+                            {{ answer.rating_answer }}/10
+                        {% elif answer.question.question_type == 'yesno' %}
+                            {% if answer.yesno_answer %}Да{% else %}Нет{% endif %}
+                        {% elif answer.question.question_type == 'ranking' %}
+                            <ol>
+                                {% for choice_text in answer_data.ranked_choices %}
+                                    <li>{{ choice_text }}</li>
+                                {% endfor %}
+                            </ol>
+                        {% elif answer.choice %}
+                            {{ answer.choice.text }}
+                        {% else %}
+                            Нет ответа
+                        {% endif %}
+                    </li>
+                {% endwith %}
+            {% empty %}
+                <li class="list-group-item">Ответов нет</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <!-- Показываем форму опроса -->
+        <form action="{% url 'polls:detail' survey.id %}" method="post" id="surveyForm">
+            {% csrf_token %}
+            {% for question in survey.questions.all %}
+                <div class="mb-4 p-3 border rounded bg-light">
+                    <h3>{{ question.text }}</h3>
+                    {% if question.question_type == 'radio' %}
+                        {% for choice in question.choices.all %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
+                                <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
+                            </div>
+                        {% endfor %}
+                    {% elif question.question_type == 'checkbox' %}
+                        {% for choice in question.choices.all %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="question_{{ question.id }}" id="choice_{{ choice.id }}" value="{{ choice.id }}">
+                                <label class="form-check-label" for="choice_{{ choice.id }}">{{ choice.text }}</label>
+                            </div>
+                        {% endfor %}
+                    {% elif question.question_type == 'text' %}
+                        <textarea class="form-control" name="question_{{ question.id }}" rows="3" placeholder="Введите ваш ответ"></textarea>
+                    {% elif question.question_type == 'rating' %}
+                        <select class="form-control" name="question_{{ question.id }}">
+                            {% for i in "12345678910"|make_list %}
+                                <option value="{{ forloop.counter }}">{{ forloop.counter }}</option>
+                            {% endfor %}
+                        </select>
+                    {% elif question.question_type == 'yesno' %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="yes_{{ question.id }}" value="yes">
+                            <label class="form-check-label" for="yes_{{ question.id }}">Да</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="no_{{ question.id }}" value="no">
+                            <label class="form-check-label" for="no_{{ question.id }}">Нет</label>
+                        </div>
+                    {% elif question.question_type == 'ranking' %}
+                        {% for choice in question.choices.all %}
+                            <div class="form-group">
+                                <label>{{ choice.text }}</label>
+                                <input type="number" class="form-control" name="question_{{ question.id }}" value="{{ choice.id }}" min="1" max="{{ question.choices.count }}" required>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Отправить ответы</button>
+                <a href="{% url 'polls:index' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Назад к списку</a>
             </div>
-            <div class="modal-body">
-                Ваши ответы успешно приняты.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Закрыть</button>
+        </form>
+    {% endif %}
+
+    <div class="modal fade" id="thanksModal" tabindex="-1" aria-labelledby="thanksModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="thanksModalLabel">Спасибо за участие!</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Ваши ответы успешно приняты.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
             </div>
         </div>
     </div>

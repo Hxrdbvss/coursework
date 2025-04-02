@@ -15,9 +15,25 @@ def index(request):
 
 def detail(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
-    context = {'survey': survey}
+    user_answers = Answer.objects.filter(question__survey=survey, user=request.user) if request.user.is_authenticated else None
     
-    if request.method == 'POST':
+    # Подготовка данных для отображения ответов
+    answers_with_ranking = []
+    if user_answers:
+        for answer in user_answers:
+            answer_data = {'answer': answer}
+            if answer.question.question_type == 'ranking' and answer.ranking_answer:
+                # Получаем текст вариантов в порядке ранжирования
+                ranked_choices = [answer.question.choices.get(id=choice_id).text for choice_id in answer.ranking_answer]
+                answer_data['ranked_choices'] = ranked_choices
+            answers_with_ranking.append(answer_data)
+    
+    context = {
+        'survey': survey,
+        'user_answers': answers_with_ranking,  # Передаем обновленные данные
+    }
+    
+    if request.method == 'POST' and not user_answers and survey.is_active:
         questions = survey.questions.all()
         for question in questions:
             if question.question_type == 'radio':
@@ -26,7 +42,7 @@ def detail(request, survey_id):
                     choice = get_object_or_404(Choice, pk=choice_id, question=question)
                     Answer.objects.create(question=question, choice=choice, user=request.user)
                 else:
-                    context['error_message'] = f'Выберите вариант для вопроса "{question.text}"'
+                    context['error_message'] = f'Выберите вариант для "{question.text}"'
                     return render(request, 'polls/detail.html', context)
             elif question.question_type == 'checkbox':
                 choice_ids = request.POST.getlist(f'question_{question.id}')
@@ -35,14 +51,39 @@ def detail(request, survey_id):
                         choice = get_object_or_404(Choice, pk=choice_id, question=question)
                         Answer.objects.create(question=question, choice=choice, user=request.user)
                 else:
-                    context['error_message'] = f'Выберите хотя бы один вариант для вопроса "{question.text}"'
+                    context['error_message'] = f'Выберите хотя бы один вариант для "{question.text}"'
                     return render(request, 'polls/detail.html', context)
             elif question.question_type == 'text':
                 text_answer = request.POST.get(f'question_{question.id}')
                 if text_answer and text_answer.strip():
                     Answer.objects.create(question=question, text_answer=text_answer, user=request.user)
                 else:
-                    context['error_message'] = f'Введите текст для вопроса "{question.text}"'
+                    context['error_message'] = f'Введите текст для "{question.text}"'
+                    return render(request, 'polls/detail.html', context)
+            elif question.question_type == 'rating':
+                rating = request.POST.get(f'question_{question.id}')
+                if rating and rating.isdigit() and 1 <= int(rating) <= 10:
+                    Answer.objects.create(question=question, user=request.user, rating_answer=int(rating))
+                else:
+                    context['error_message'] = f'Выберите оценку от 1 до 10 для "{question.text}"'
+                    return render(request, 'polls/detail.html', context)
+            elif question.question_type == 'yesno':
+                yesno = request.POST.get(f'question_{question.id}')
+                if yesno in ['yes', 'no']:
+                    Answer.objects.create(question=question, user=request.user, yesno_answer=(yesno == 'yes'))
+                else:
+                    context['error_message'] = f'Выберите "Да" или "Нет" для "{question.text}"'
+                    return render(request, 'polls/detail.html', context)
+            elif question.question_type == 'ranking':
+                ranking = request.POST.getlist(f'question_{question.id}')
+                if ranking and len(ranking) == question.choices.count():
+                    Answer.objects.create(
+                        question=question,
+                        user=request.user,
+                        ranking_answer=[int(choice_id) for choice_id in ranking]
+                    )
+                else:
+                    context['error_message'] = f'Расставьте все варианты для "{question.text}"'
                     return render(request, 'polls/detail.html', context)
         
         context['show_thanks'] = True
@@ -67,7 +108,8 @@ def create_survey(request):
                     text=question_text,
                     question_type=question_type
                 )
-                if question_type != 'text':
+                # Для типов с вариантами (radio, checkbox, ranking)
+                if question_type in ['radio', 'checkbox', 'ranking']:
                     choice_index = 0
                     while f'choice-{question_index}-{choice_index}-text' in request.POST:
                         choice_text = request.POST.get(f'choice-{question_index}-{choice_index}-text')
@@ -134,7 +176,6 @@ def profile(request, username):
     context = {
         'profile': profile,
         'surveys': surveys,
-        'user_answers': user_answers,  # Передаем ответы пользователя
     }
     return render(request, 'polls/profile.html', context)
 
