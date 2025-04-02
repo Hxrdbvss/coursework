@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.forms import formset_factory
 from .models import Survey, Question, Choice, Answer
 from .forms import SurveyForm, QuestionFormSet, ChoiceFormSet
+from django.contrib.auth.models import User
 
 def index(request):
     surveys = Survey.objects.all()
@@ -110,6 +111,27 @@ def add_questions(request, survey_id):
         'question_formset': question_formset,
         'choice_formsets': choice_formsets,
     })
+
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)  # Автоматический вход после регистрации
+            return redirect('polls:index')
+    else:
+        form = UserCreationForm()
+    return render(request, 'polls/registration_form.html', {'form': form})
+
+
+def profile(request, username):
+    profile = get_object_or_404(User, username=username)
+    surveys = Survey.objects.filter(id__in=Answer.objects.filter(question__survey__in=Survey.objects.all()).values('question__survey').distinct())  # Опросы, в которых участвовал пользователь
+    context = {
+        'profile': profile,
+        'surveys': surveys,
+    }
+    return render(request, 'polls/profile.html', context)
 
 def edit(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)

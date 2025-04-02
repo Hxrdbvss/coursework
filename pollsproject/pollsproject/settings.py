@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'polls'
+    'django_bootstrap5',
+    'polls',
 ]
 
 MIDDLEWARE = [
@@ -128,3 +129,12 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# URL для перенаправления после логина
+LOGIN_REDIRECT_URL = '/polls/'  # После входа перенаправляем на список опросов
+
+# URL для перенаправления после выхода
+LOGOUT_REDIRECT_URL = '/'       # После выхода перенаправляем на главную
+
+# URL для страницы логина
+LOGIN_URL = '/login/'           # Если пользователь не авторизован, перенаправляем сюда
