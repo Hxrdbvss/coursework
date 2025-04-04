@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.forms import formset_factory
 from .models import Survey, Question, Choice, Answer
 from .forms import SurveyForm, QuestionFormSet, ChoiceFormSet
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
 def index(request):
@@ -163,7 +164,7 @@ def register(request):
             return redirect('polls:index')
     else:
         form = UserCreationForm()
-    return render(request, 'polls/registration_form.html', {'form': form})
+    return render(request, 'registration/registration_form.html', {'form': form})
 
 
 def profile(request, username):

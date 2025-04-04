@@ -16,9 +16,9 @@ class Question(models.Model):
         ('radio', 'Radio'),
         ('checkbox', 'Checkbox'),
         ('text', 'Text'),
-        ('rating', 'Rating'),    # Новый тип: шкала оценки
-        ('yesno', 'Yes/No'),     # Новый тип: да/нет
-        ('ranking', 'Ranking'),  # Новый тип: ранжирование
+        ('rating', 'Rating'),    
+        ('yesno', 'Yes/No'),     
+        ('ranking', 'Ranking'),  
     ])
 
     def __str__(self):
@@ -36,9 +36,9 @@ class Answer(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     choice = models.ForeignKey(Choice, on_delete=models.CASCADE, null=True, blank=True)
     text_answer = models.TextField(null=True, blank=True)
-    rating_answer = models.IntegerField(null=True, blank=True)  # Для Rating
-    yesno_answer = models.BooleanField(null=True, blank=True)  # Для Yes/No
-    ranking_answer = JSONField(null=True, blank=True)          # Для Ranking (список ID вариантов)
+    rating_answer = models.IntegerField(null=True, blank=True)  
+    yesno_answer = models.BooleanField(null=True, blank=True)  
+    ranking_answer = JSONField(null=True, blank=True)         
 
     def __str__(self):
         return f"Answer to {self.question} by {self.user}"

@@ -19,6 +19,7 @@ class QuestionForm(forms.ModelForm):
             'question_type': forms.Select(attrs={'class': 'form-control'}),
         }
 
+
 class ChoiceForm(forms.ModelForm):
     class Meta:
         model = Choice

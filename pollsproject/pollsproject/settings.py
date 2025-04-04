@@ -130,11 +130,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# URL для перенаправления после логина
-LOGIN_REDIRECT_URL = '/polls/'  # После входа перенаправляем на список опросов
-
 # URL для перенаправления после выхода
-LOGOUT_REDIRECT_URL = '/'       # После выхода перенаправляем на главную
+LOGOUT_REDIRECT_URL = '/polls/'       # После выхода перенаправляем на главную
 
 # URL для страницы логина
-LOGIN_URL = '/login/'           # Если пользователь не авторизован, перенаправляем сюда
+LOGIN_URL = '/auth/login/'           # Если пользователь не авторизован, перенаправляем сюда
