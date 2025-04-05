@@ -13,4 +13,7 @@ urlpatterns = [
     path('auth/', include('django.contrib.auth.urls')),  # /polls/auth/...
     path('register/', views.register, name='register'),  # /polls/register/
     path('profile/<str:username>/', views.profile, name='profile'),  # /polls/profile/<username>/
+    path('api/surveys/', views.SurveyList.as_view(), name='survey_list_api'),
+    path('api/register/', views.RegisterView.as_view(), name='api_register'),
+    path('api/login/', views.LoginView.as_view(), name='api_login'),
 ]
