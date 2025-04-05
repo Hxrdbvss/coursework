@@ -1,87 +1,65 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import axios from 'axios';
+import { Container } from 'react-bootstrap';
+import SurveyList from './components/SurveyList';
+import SurveyDetail from './components/SurveyDetail';
+import SurveyCreate from './components/SurveyCreate';
+import SurveyEdit from './components/SurveyEdit';
+import AddQuestions from './components/AddQuestions';
+import Profile from './components/Profile';
+import Register from './components/Register';
+import Login from './components/Login'; // Добавьте компонент Login
 import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [surveys, setSurveys] = useState([]);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     if (token) {
-      fetchSurveys(token);
+      axios
+        .get('http://127.0.0.1:8000/api/user/', {
+          headers: { Authorization: `Token ${token}` }
+        })
+        .then((response) => setUser(response.data))
+        .catch(() => {
+          setToken(null);
+          localStorage.removeItem('token');
+        });
     }
   }, [token]);
 
-  const fetchSurveys = (authToken) => {
-    axios.get('http://127.0.0.1:8000/api/surveys/', {
-      headers: { Authorization: `Token ${authToken}` }
-    })
-      .then(response => setSurveys(response.data))
-      .catch(error => console.error('Ошибка получения опросов:', error));
-  };
-
-  const handleRegister = () => {
-    axios.post('http://127.0.0.1:8000/api/register/', { username, password })
-      .then(response => {
-        setToken(response.data.token);
-        localStorage.setItem('token', response.data.token);
-        alert('Регистрация успешна!');
-      })
-      .catch(error => console.error('Ошибка регистрации:', error));
-  };
-
-  const handleLogin = () => {
-    axios.post('http://127.0.0.1:8000/api/login/', { username, password })
-      .then(response => {
-        setToken(response.data.token);
-        localStorage.setItem('token', response.data.token);
-        fetchSurveys(response.data.token);
-      })
-      .catch(error => console.error('Ошибка логина:', error));
-  };
-
   const handleLogout = () => {
     setToken(null);
+    setUser(null);
     localStorage.removeItem('token');
-    setSurveys([]);
   };
 
   return (
-    <div className="App">
-      {!token ? (
-        <div>
-          <h1>Авторизация</h1>
-          <input
-            type="text"
-            placeholder="Имя пользователя"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+    <Router>
+      <Container className="mt-4">
+        <Routes>
+          <Route path="/register" element={<Register setToken={setToken} setUser={setUser} />} />
+          <Route path="/login" element={<Login setToken={setToken} setUser={setUser} />} />
+          <Route
+            path="/"
+            element={
+              token ? (
+                <SurveyList token={token} user={user} handleLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" /> // Перенаправление на логин
+              )
+            }
           />
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button onClick={handleRegister}>Регистрация</button>
-          <button onClick={handleLogin}>Войти</button>
-        </div>
-      ) : (
-        <div>
-          <h1>Список опросов</h1>
-          <button onClick={handleLogout}>Выйти</button>
-          <ul>
-            {surveys.map(survey => (
-              <li key={survey.id}>
-                {survey.title} {survey.is_active ? '(Активен)' : '(Неактивен)'}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+          <Route path="/survey/:id" element={<SurveyDetail token={token} />} />
+          <Route path="/create" element={<SurveyCreate token={token} />} />
+          <Route path="/edit/:id" element={<SurveyEdit token={token} />} />
+          <Route path="/add-questions/:id" element={<AddQuestions token={token} />} />
+          <Route path="/profile/:username" element={<Profile token={token} />} />
+        </Routes>
+      </Container>
+    </Router>
   );
 }
 

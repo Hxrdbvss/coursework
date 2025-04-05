@@ -14,6 +14,11 @@ urlpatterns = [
     path('register/', views.register, name='register'),  # /polls/register/
     path('profile/<str:username>/', views.profile, name='profile'),  # /polls/profile/<username>/
     path('api/surveys/', views.SurveyList.as_view(), name='survey_list_api'),
+    path('api/surveys/create/', views.SurveyCreate.as_view(), name='survey_create_api'),
+    path('api/surveys/<int:pk>/', views.SurveyDetail.as_view(), name='survey_detail_api'),
+    path('api/surveys/<int:survey_id>/questions/', views.add_questions, name='add_questions_api'),
     path('api/register/', views.RegisterView.as_view(), name='api_register'),
     path('api/login/', views.LoginView.as_view(), name='api_login'),
+    path('api/profile/<str:username>/', views.profile_view, name='profile_api'),
+    path('api/surveys/<int:survey_id>/answers/', views.submit_answers, name='submit_answers_api'),
 ]

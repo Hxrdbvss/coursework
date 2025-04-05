@@ -36,3 +36,23 @@
     transform: rotate(360deg);
   }
 }
+
+body {
+  background-color: #f8f9fa;
+}
+
+.question-box {
+  transition: all 0.3s ease;
+}
+
+.question-box:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-custom {
+  transition: transform 0.2s;
+}
+
+.btn-custom:hover {
+  transform: scale(1.05);
+}

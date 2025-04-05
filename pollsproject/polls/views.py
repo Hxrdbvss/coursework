@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework import status
+from rest_framework.decorators import api_view
 from .models import Survey, Question, Choice, Answer
 from .forms import QuestionFormSet, ChoiceFormSet
 from .serializers import SurveySerializer, UserSerializer
@@ -90,6 +92,81 @@ class LoginView(ObtainAuthToken):
         token, created = Token.objects.get_or_create(user=user)
         login(request, user)  # Автоматический вход для сессии
         return Response({'token': token.key, 'user_id': user.id, 'username': user.username})
+
+class SurveyCreate(generics.CreateAPIView):
+    queryset = Survey.objects.all()
+    serializer_class = SurveySerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+class SurveyDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Survey.objects.all()
+    serializer_class = SurveySerializer
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, *args, **kwargs):
+        if self.get_object().author != request.user:
+            return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+        return super().put(request, *args, **kwargs)
+
+@api_view(['POST'])
+def add_questions(request, survey_id):
+    survey = get_object_or_404(Survey, pk=survey_id)
+    if survey.author != request.user:
+        return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+    
+    for q_data in request.data:
+        question = Question.objects.create(
+            survey=survey,
+            text=q_data['text'],
+            question_type=q_data['question_type']
+        )
+        for choice_text in q_data.get('choices', []):
+            if choice_text:
+                Choice.objects.create(question=question, text=choice_text)
+    return Response({"detail": "Questions added"}, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+def profile_view(request, username):
+    user = get_object_or_404(User, username=username)
+    surveys = Survey.objects.filter(questions__answers__user=user).distinct()
+    return Response({
+        "user": {
+            "username": user.username,
+            "full_name": user.get_full_name(),
+            "date_joined": user.date_joined,
+            "is_staff": user.is_staff
+        },
+        "surveys": SurveySerializer(surveys, many=True).data
+    })
+
+@api_view(['POST'])
+def submit_answers(request, survey_id):
+    survey = get_object_or_404(Survey, pk=survey_id)
+    if not survey.is_active:
+        return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    for question_id, answer in request.data.items():
+        question = get_object_or_404(Question, pk=question_id, survey=survey)
+        if question.question_type in ['radio', 'checkbox']:
+            if isinstance(answer, list):
+                for choice_text in answer:
+                    choice = Choice.objects.get(question=question, text=choice_text)
+                    Answer.objects.create(question=question, choice=choice, user=request.user)
+            else:
+                choice = Choice.objects.get(question=question, text=answer)
+                Answer.objects.create(question=question, choice=choice, user=request.user)
+        elif question.question_type == 'text':
+            Answer.objects.create(question=question, text_answer=answer, user=request.user)
+        elif question.question_type == 'rating':
+            Answer.objects.create(question=question, rating_answer=int(answer), user=request.user)
+        elif question.question_type == 'yesno':
+            Answer.objects.create(question=question, yesno_answer=(answer == 'Да'), user=request.user)
+        elif question.question_type == 'ranking':
+            Answer.objects.create(question=question, ranking_answer=list(answer.values()), user=request.user)
+    return Response({"detail": "Answers submitted"}, status=status.HTTP_201_CREATED)
 
 
 # Обычные представления
