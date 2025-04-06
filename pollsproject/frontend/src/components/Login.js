@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Form, Button, Alert, Card } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
-
 
 function Login({ setToken, setUser }) {
   const [username, setUsername] = useState('');
@@ -12,7 +11,10 @@ function Login({ setToken, setUser }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    axios.post('http://127.0.0.1:8000/api/login/', { username, password })
+    console.log("Sending:", { username, password }); // Логируем отправляемые данные
+    axios.post('http://127.0.0.1:8000/api/login/', { username, password }, {
+      headers: { 'Content-Type': 'application/json' }
+    })
       .then(response => {
         setToken(response.data.token);
         setUser({ username: response.data.username, id: response.data.user_id });
@@ -20,6 +22,7 @@ function Login({ setToken, setUser }) {
         navigate('/');
       })
       .catch(err => {
+        console.error("Error response:", err.response); // Логируем ошибку
         setError(err.response?.data?.non_field_errors || 'Ошибка входа');
       });
   };

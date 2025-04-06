@@ -3,65 +3,35 @@ from django.forms import formset_factory
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.contrib.auth.models import User
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework import status
 from rest_framework.decorators import api_view
 from .models import Survey, Question, Choice, Answer
 from .forms import QuestionFormSet, ChoiceFormSet
-from .serializers import SurveySerializer, UserSerializer
+from .serializers import SurveySerializer, AnswerSerializer
 
+class SubmitAnswers(generics.CreateAPIView):
+    serializer_class = AnswerSerializer
+    permission_classes = [IsAuthenticated]
 
-# Вспомогательная функция для сохранения ответов в detail
-def save_answer(question, request, user):
-    if question.question_type == 'radio':
-        choice_id = request.POST.get(f'question_{question.id}')
-        if choice_id:
-            choice = get_object_or_404(Choice, pk=choice_id, question=question)
-            Answer.objects.create(question=question, choice=choice, user=user)
-        else:
-            return f'Выберите вариант для "{question.text}"'
-    elif question.question_type == 'checkbox':
-        choice_ids = request.POST.getlist(f'question_{question.id}')
-        if choice_ids:
-            for choice_id in choice_ids:
-                choice = get_object_or_404(Choice, pk=choice_id, question=question)
-                Answer.objects.create(question=question, choice=choice, user=user)
-        else:
-            return f'Выберите хотя бы один вариант для "{question.text}"'
-    elif question.question_type == 'text':
-        text_answer = request.POST.get(f'question_{question.id}')
-        if text_answer and text_answer.strip():
-            Answer.objects.create(question=question, text_answer=text_answer, user=user)
-        else:
-            return f'Введите текст для "{question.text}"'
-    elif question.question_type == 'rating':
-        rating = request.POST.get(f'question_{question.id}')
-        if rating and rating.isdigit() and 1 <= int(rating) <= 10:
-            Answer.objects.create(question=question, user=user, rating_answer=int(rating))
-        else:
-            return f'Выберите оценку от 1 до 10 для "{question.text}"'
-    elif question.question_type == 'yesno':
-        yesno = request.POST.get(f'question_{question.id}')
-        if yesno in ['yes', 'no']:
-            Answer.objects.create(question=question, user=user, yesno_answer=(yesno == 'yes'))
-        else:
-            return f'Выберите "Да" или "Нет" для "{question.text}"'
-    elif question.question_type == 'ranking':
-        ranking = request.POST.getlist(f'question_{question.id}')
-        if ranking and len(ranking) == question.choices.count():
-            Answer.objects.create(
-                question=question,
-                user=user,
-                ranking_answer=[int(choice_id) for choice_id in ranking]
-            )
-        else:
-            return f'Расставьте все варианты для "{question.text}"'
-    return None
+    def create(self, request, *args, **kwargs):
+        survey_id = self.kwargs['survey_id']
+        survey = get_object_or_404(Survey, pk=survey_id)
+        if not survey.is_active:
+            return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
+
+        answers_data = request.data  # Ожидаем список ответов
+        for answer_data in answers_data:
+            answer_data['survey'] = survey_id
+            answer_data['user'] = request.user.id
+            serializer = self.get_serializer(data=answer_data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        return Response({"message": "Ответы сохранены"}, status=status.HTTP_201_CREATED)
 
 
 # API-представления
@@ -110,6 +80,14 @@ class SurveyDetail(generics.RetrieveUpdateDestroyAPIView):
         if self.get_object().author != request.user:
             return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
         return super().put(request, *args, **kwargs)
+
+class SurveyEdit(generics.RetrieveUpdateAPIView):
+    queryset = Survey.objects.all()
+    serializer_class = SurveySerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_update(self, serializer):
+        serializer.save(author=self.request.user)
 
 @api_view(['POST'])
 def add_questions(request, survey_id):

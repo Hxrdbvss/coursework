@@ -5,6 +5,8 @@ from django.db.models import JSONField
 class Survey(models.Model):
     title = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
+    author = models.ForeignKey(User, on_delete=models.CASCADE)  # Добавь, если отсутствует
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
         return self.title
@@ -39,6 +41,6 @@ class Answer(models.Model):
     rating_answer = models.IntegerField(null=True, blank=True)  
     yesno_answer = models.BooleanField(null=True, blank=True)  
     ranking_answer = JSONField(null=True, blank=True)         
-
+    survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
     def __str__(self):
         return f"Answer to {self.question} by {self.user}"

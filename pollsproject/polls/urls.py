@@ -21,4 +21,5 @@ urlpatterns = [
     path('api/login/', views.LoginView.as_view(), name='api_login'),
     path('api/profile/<str:username>/', views.profile_view, name='profile_api'),
     path('api/surveys/<int:survey_id>/answers/', views.submit_answers, name='submit_answers_api'),
+    path('api/surveys/<int:survey_id>/submit/', views.SubmitAnswers.as_view(), name='submit_answers'),
 ]

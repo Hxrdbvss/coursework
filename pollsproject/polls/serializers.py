@@ -1,25 +1,59 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Survey
+from .models import Survey, Question, Choice, Answer  # Добавлен Answer
 
-class UserSerializer(serializers.ModelSerializer):
+class ChoiceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'password']
-        extra_kwargs = {
-            'password': {'write_only': True},
-            'email': {'required': True}  
-        }
+        model = Choice
+        fields = ['id', 'text']
+
+class QuestionSerializer(serializers.ModelSerializer):
+    choices = ChoiceSerializer(many=True, required=False)
+
+    class Meta:
+        model = Question
+        fields = ['id', 'text', 'question_type', 'choices']
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password']
-        )
-        return user
+        choices_data = validated_data.pop('choices', [])
+        question = Question.objects.create(**validated_data)
+        for choice_data in choices_data:
+            Choice.objects.create(question=question, **choice_data)
+        return question
 
 class SurveySerializer(serializers.ModelSerializer):
+    questions = QuestionSerializer(many=True)
+
     class Meta:
         model = Survey
-        fields = ['id', 'title', 'is_active']
+        fields = ['id', 'title', 'is_active', 'questions']
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['questions'] = QuestionSerializer(instance.questions.all(), many=True).data
+        return representation
+
+    def create(self, validated_data):
+        questions_data = validated_data.pop('questions', [])
+        survey = Survey.objects.create(**validated_data)
+        for question_data in questions_data:
+            question_data['survey'] = survey
+            QuestionSerializer().create(question_data)
+        return survey
+
+    def update(self, instance, validated_data):
+        questions_data = validated_data.pop('questions', None)
+        instance.title = validated_data.get('title', instance.title)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        if questions_data is not None:
+            instance.questions.all().delete()
+            for question_data in questions_data:
+                question_data['survey'] = instance
+                QuestionSerializer().create(question_data)
+        return instance
+
+class AnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Answer  # Теперь Answer определён благодаря импорту
+        fields = ['question', 'choice', 'text_answer']

@@ -9,7 +9,7 @@ import SurveyEdit from './components/SurveyEdit';
 import AddQuestions from './components/AddQuestions';
 import Profile from './components/Profile';
 import Register from './components/Register';
-import Login from './components/Login'; // Добавьте компонент Login
+import Login from './components/Login';
 import './App.css';
 
 function App() {
@@ -18,12 +18,13 @@ function App() {
 
   useEffect(() => {
     if (token) {
-      axios
-        .get('http://127.0.0.1:8000/api/user/', {
-          headers: { Authorization: `Token ${token}` }
-        })
-        .then((response) => setUser(response.data))
-        .catch(() => {
+      console.log("Checking token validity with:", token); // Добавим лог
+      axios.get('http://127.0.0.1:8000/api/surveys/', {
+        headers: { Authorization: `Token ${token}` }
+      })
+        .then(response => console.log("Surveys loaded:", response.data))
+        .catch(err => {
+          console.error("Token invalid:", err.response?.status);
           setToken(null);
           localStorage.removeItem('token');
         });
@@ -48,7 +49,7 @@ function App() {
               token ? (
                 <SurveyList token={token} user={user} handleLogout={handleLogout} />
               ) : (
-                <Navigate to="/login" /> // Перенаправление на логин
+                <Navigate to="/login" />
               )
             }
           />

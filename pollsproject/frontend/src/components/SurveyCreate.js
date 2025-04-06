@@ -7,7 +7,16 @@ function SurveyCreate({ token }) {
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([{ text: '', type: 'radio', choices: [''] }]);
   const navigate = useNavigate();
-
+  const surveyData = {
+    title,
+    questions: questions.map(q => ({
+      text: q.text,
+      question_type: q.type,
+      choices: q.type === 'text' || q.type === 'rating' || q.type === 'yesno' ? [] : q.choices.filter(c => c)
+    })),
+    is_active: true
+  };
+  console.log("Survey data:", surveyData);
   const addQuestion = () => {
     setQuestions([...questions, { text: '', type: 'radio', choices: [''] }]);
   };
