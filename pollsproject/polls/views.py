@@ -12,7 +12,7 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.decorators import api_view
 from .models import Survey, Question, Choice, Answer
 from .forms import QuestionFormSet, ChoiceFormSet
-from .serializers import SurveySerializer, AnswerSerializer
+from .serializers import SurveySerializer, AnswerSerializer, UserSerializer
 
 class SubmitAnswers(generics.CreateAPIView):
     serializer_class = AnswerSerializer
@@ -34,12 +34,19 @@ class SubmitAnswers(generics.CreateAPIView):
         return Response({"message": "Ответы сохранены"}, status=status.HTTP_201_CREATED)
 
 
-# API-представления
 class SurveyList(generics.ListAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
-    permission_classes = [AllowAny]  # Можно заменить на IsAuthenticated
+    permission_classes = [IsAuthenticated]  # Требуем авторизацию
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        user_serializer = UserSerializer(request.user)  # Сериализуем текущего пользователя
+        return Response({
+            'surveys': serializer.data,
+            'user': user_serializer.data
+        })
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -126,26 +133,24 @@ def submit_answers(request, survey_id):
     if not survey.is_active:
         return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
     
-    for question_id, answer in request.data.items():
-        question = get_object_or_404(Question, pk=question_id, survey=survey)
-        if question.question_type in ['radio', 'checkbox']:
-            if isinstance(answer, list):
-                for choice_text in answer:
-                    choice = Choice.objects.get(question=question, text=choice_text)
-                    Answer.objects.create(question=question, choice=choice, user=request.user)
-            else:
-                choice = Choice.objects.get(question=question, text=answer)
+    for answer_data in request.data:
+        question = get_object_or_404(Question, pk=answer_data['question'], survey=survey)
+        if question.question_type == 'radio':
+            choice = get_object_or_404(Choice, pk=answer_data['choice'], question=question)
+            Answer.objects.create(question=question, choice=choice, user=request.user)
+        elif question.question_type == 'checkbox':
+            for choice_id in answer_data['choices']:
+                choice = get_object_or_404(Choice, pk=choice_id, question=question)
                 Answer.objects.create(question=question, choice=choice, user=request.user)
         elif question.question_type == 'text':
-            Answer.objects.create(question=question, text_answer=answer, user=request.user)
+            Answer.objects.create(question=question, text_answer=answer_data['text_answer'], user=request.user)
         elif question.question_type == 'rating':
-            Answer.objects.create(question=question, rating_answer=int(answer), user=request.user)
+            Answer.objects.create(question=question, rating_answer=answer_data['rating_answer'], user=request.user)
         elif question.question_type == 'yesno':
-            Answer.objects.create(question=question, yesno_answer=(answer == 'Да'), user=request.user)
+            Answer.objects.create(question=question, yesno_answer=answer_data['yesno_answer'], user=request.user)
         elif question.question_type == 'ranking':
-            Answer.objects.create(question=question, ranking_answer=list(answer.values()), user=request.user)
+            Answer.objects.create(question=question, ranking_answer=answer_data['ranking_answer'], user=request.user)
     return Response({"detail": "Answers submitted"}, status=status.HTTP_201_CREATED)
-
 
 # Обычные представления
 def index(request):

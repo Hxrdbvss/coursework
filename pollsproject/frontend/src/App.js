@@ -53,7 +53,7 @@ function App() {
               )
             }
           />
-          <Route path="/survey/:id" element={<SurveyDetail token={token} />} />
+          <Route path="/survey/:id" element={<SurveyDetail token={token} setToken={setToken} />} />
           <Route path="/create" element={<SurveyCreate token={token} />} />
           <Route path="/edit/:id" element={<SurveyEdit token={token} />} />
           <Route path="/add-questions/:id" element={<AddQuestions token={token} />} />

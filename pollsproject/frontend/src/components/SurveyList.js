@@ -3,8 +3,9 @@ import { ListGroup, Button, Modal } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-function SurveyList({ token, user, handleLogout }) {
+function SurveyList({ token, setToken }) {  // Убрали user, добавили setToken
   const [surveys, setSurveys] = useState([]);
+  const [user, setUser] = useState(null);  // Для хранения данных пользователя
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [surveyToDelete, setSurveyToDelete] = useState(null);
   const navigate = useNavigate();
@@ -12,24 +13,51 @@ function SurveyList({ token, user, handleLogout }) {
   useEffect(() => {
     axios.get('http://127.0.0.1:8000/api/surveys/', {
       headers: { Authorization: `Token ${token}` }
-    }).then(response => setSurveys(response.data));
+    })
+      .then(response => {
+        console.log("Survey list data:", response.data);
+        setSurveys(response.data.surveys);  // Извлекаем surveys
+        setUser(response.data.user);        // Извлекаем user
+      })
+      .catch(err => {
+        console.error("Error loading surveys:", err.response?.data);
+      });
   }, [token]);
 
   const handleDelete = () => {
     axios.delete(`http://127.0.0.1:8000/api/surveys/${surveyToDelete.id}/`, {
       headers: { Authorization: `Token ${token}` }
-    }).then(() => {
-      setSurveys(surveys.filter(s => s.id !== surveyToDelete.id));
-      setShowDeleteModal(false);
-    });
+    })
+      .then(() => {
+        setSurveys(surveys.filter(s => s.id !== surveyToDelete.id));
+        setShowDeleteModal(false);
+      })
+      .catch(err => {
+        console.error("Error deleting survey:", err.response?.data);
+      });
+  };
+
+  const handleLogout = () => {
+    setToken(null);  // Очищаем токен
+    localStorage.removeItem('token');  // Удаляем токен из localStorage
+    navigate('/login');  // Перенаправляем на страницу входа
   };
 
   return (
-    <>
-      <h1>Список опросов</h1>
-      <Button variant="danger" onClick={handleLogout} className="mb-3 btn-custom">
-        Выйти
-      </Button>
+    <div className="container mt-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1>Список опросов</h1>
+        {user && (
+          <div>
+            <Link to={`/profile/${user.username}`} className="me-3">
+              {user.username}
+            </Link>
+            <Button variant="danger" onClick={handleLogout} className="btn-custom">
+              Выйти
+            </Button>
+          </div>
+        )}
+      </div>
       <ListGroup>
         {surveys.map(survey => (
           <ListGroup.Item key={survey.id} className="d-flex justify-content-between align-items-center">
@@ -78,7 +106,7 @@ function SurveyList({ token, user, handleLogout }) {
           </Button>
         </Modal.Footer>
       </Modal>
-    </>
+    </div>
   );
 }
 
