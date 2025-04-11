@@ -23,7 +23,7 @@ class SubmitAnswers(generics.CreateAPIView):
         survey = get_object_or_404(Survey, pk=survey_id)
         if not survey.is_active:
             return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
-        answers_data = request.data  # Ожидаем список ответов
+        answers_data = request.data  
         for answer_data in answers_data:
             answer_data['survey'] = survey_id
             answer_data['user'] = request.user.id
@@ -36,11 +36,11 @@ class SubmitAnswers(generics.CreateAPIView):
 class SurveyList(generics.ListAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
-    permission_classes = [IsAuthenticated]  # Требуем авторизацию
+    permission_classes = [IsAuthenticated] 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        user_serializer = UserSerializer(request.user)  # Сериализуем текущего пользователя
+        user_serializer = UserSerializer(request.user)  
         return Response({
             'surveys': serializer.data,
             'user': user_serializer.data
@@ -53,7 +53,7 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             token, created = Token.objects.get_or_create(user=user)
-            login(request, user)  # Автоматический вход для сессии
+            login(request, user)  
             return Response({'token': token.key, 'user_id': user.id, 'username': user.username})
         return Response(serializer.errors, status=400)
 
@@ -64,7 +64,7 @@ class LoginView(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
-        login(request, user)  # Автоматический вход для сессии
+        login(request, user)  
         return Response({'token': token.key, 'user_id': user.id, 'username': user.username})
 
 class SurveyCreate(generics.CreateAPIView):
@@ -268,7 +268,7 @@ def profile(request, username):
 
 def edit(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
-    if request.user != survey.author and request.user.is_authenticated:  # Проверка прав
+    if request.user != survey.author and request.user.is_authenticated:  
         return redirect('polls:index')
     if request.method == 'POST':
         if 'delete_survey' in request.POST:

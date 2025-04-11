@@ -8,7 +8,7 @@ function SurveyEdit({ token }) {
   const [questions, setQuestions] = useState([]);
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState('');
-  const { id } = useParams(); 
+  const { id } = useParams();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,8 +17,13 @@ function SurveyEdit({ token }) {
     })
       .then(response => {
         setTitle(response.data.title);
-        setQuestions(response.data.questions || []); 
         setIsActive(response.data.is_active);
+        const loadedQuestions = response.data.questions.map(q => ({
+          text: q.text,
+          type: q.question_type,
+          choices: q.choices_display || []
+        }));
+        setQuestions(loadedQuestions);
       })
       .catch(err => {
         console.error("Error loading survey:", err.response?.data);
@@ -44,6 +49,16 @@ function SurveyEdit({ token }) {
     }
   };
 
+  const removeQuestion = (questionIndex) => {
+    if (questions.length > 1) {
+      const updatedQuestions = [...questions];
+      updatedQuestions.splice(questionIndex, 1);
+      setQuestions(updatedQuestions);
+    } else {
+      setError('Нельзя удалить последний вопрос. Опрос должен содержать хотя бы один вопрос.');
+    }
+  };
+
   const handleQuestionChange = (index, field, value) => {
     const updatedQuestions = [...questions];
     updatedQuestions[index][field] = value;
@@ -58,21 +73,33 @@ function SurveyEdit({ token }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!questions || !Array.isArray(questions)) {
-      console.error("Questions is undefined or not an array:", questions);
-      setError("Ошибка: список вопросов не определён");
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      setError("Опрос должен содержать хотя бы один вопрос.");
       return;
     }
+
+    for (const q of questions) {
+      if (['radio', 'checkbox', 'ranking'].includes(q.type)) {
+        const validChoices = q.choices.filter(c => c.trim() !== '');
+        if (validChoices.length === 0) {
+          setError(`Для вопроса "${q.text || 'без названия'}" типа "${q.type}" требуется хотя бы один непустой вариант ответа.`);
+          return;
+        }
+      }
+    }
+
     const surveyData = {
       title,
+      is_active: isActive,
       questions: questions.map(q => ({
         text: q.text,
         question_type: q.type,
-        choices: q.type === 'text' || q.type === 'rating' || q.type === 'yesno' ? [] : q.choices.filter(c => c)
-      })),
-      is_active: isActive
+        choices: q.type === 'text' || q.type === 'rating' || q.type === 'yesno' ? [] : q.choices.filter(c => c.trim() !== '')
+      }))
     };
-    console.log("Sending:", JSON.stringify(surveyData, null, 2));
+    console.log("Sending survey data:", surveyData);
+
     axios.put(`http://127.0.0.1:8000/api/surveys/${id}/`, surveyData, {
       headers: { 
         'Authorization': `Token ${token}`,
@@ -80,12 +107,12 @@ function SurveyEdit({ token }) {
       }
     })
       .then(response => {
-        console.log("Success:", response.data);
+        console.log("Survey updated:", response.data);
         navigate('/');
       })
       .catch(err => {
-        console.error("Error:", err.response ? err.response.data : err.message);
-        setError('Ошибка при сохранении: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+        console.error("Error updating survey:", err.response?.data);
+        setError('Ошибка при сохранении: ' + JSON.stringify(err.response?.data || 'Неизвестная ошибка'));
       });
   };
 
@@ -118,15 +145,23 @@ function SurveyEdit({ token }) {
             <Card key={qIndex} className="question-box mb-4 p-3">
               <Row>
                 <Col md={8}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Вопрос {qIndex + 1}</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={question.text}
-                      onChange={(e) => handleQuestionChange(qIndex, 'text', e.target.value)}
-                      required
-                    />
+                  <Form.Group className="mb-3 d-flex align-items-center">
+                    <Form.Label className="me-3">Вопрос {qIndex + 1}</Form.Label>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={() => removeQuestion(qIndex)}
+                      disabled={questions.length === 1}
+                    >
+                      Удалить вопрос
+                    </Button>
                   </Form.Group>
+                  <Form.Control
+                    type="text"
+                    value={question.text}
+                    onChange={(e) => handleQuestionChange(qIndex, 'text', e.target.value)}
+                    required
+                  />
                 </Col>
                 <Col md={4}>
                   <Form.Group className="mb-3">
@@ -155,6 +190,8 @@ function SurveyEdit({ token }) {
                         value={choice}
                         onChange={(e) => handleChoiceChange(qIndex, cIndex, e.target.value)}
                         className="me-2"
+                        required
+                        placeholder={`Вариант ${cIndex + 1}`}
                       />
                       <Button
                         variant="outline-danger"

@@ -5,20 +5,13 @@ import { useNavigate } from 'react-router-dom';
 
 function SurveyCreate({ token }) {
   const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState([{ text: '', type: 'radio', choices: [''] }]);
+  const [isActive, setIsActive] = useState(true);
+  const [questions, setQuestions] = useState([{ text: '', question_type: 'radio', choices: [''] }]);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const surveyData = {
-    title,
-    questions: questions.map(q => ({
-      text: q.text,
-      question_type: q.type,
-      choices: q.type === 'text' || q.type === 'rating' || q.type === 'yesno' ? [] : q.choices.filter(c => c)
-    })),
-    is_active: true
-  };
-  console.log("Survey data:", surveyData);
+
   const addQuestion = () => {
-    setQuestions([...questions, { text: '', type: 'radio', choices: [''] }]);
+    setQuestions([...questions, { text: '', question_type: 'radio', choices: [''] }]);
   };
 
   const addChoice = (questionIndex) => {
@@ -32,6 +25,16 @@ function SurveyCreate({ token }) {
     if (updatedQuestions[questionIndex].choices.length > 1) {
       updatedQuestions[questionIndex].choices.splice(choiceIndex, 1);
       setQuestions(updatedQuestions);
+    }
+  };
+
+  const removeQuestion = (questionIndex) => {
+    if (questions.length > 1) {
+      const updatedQuestions = [...questions];
+      updatedQuestions.splice(questionIndex, 1);
+      setQuestions(updatedQuestions);
+    } else {
+      setError('Нельзя удалить последний вопрос. Опрос должен содержать хотя бы один вопрос.');
     }
   };
 
@@ -49,23 +52,50 @@ function SurveyCreate({ token }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    for (const q of questions) {
+      if (['radio', 'checkbox', 'ranking'].includes(q.question_type)) {
+        const validChoices = q.choices.filter(c => c.trim() !== '');
+        console.log(`Question ${q.text || 'без названия'} (${q.question_type}): validChoices =`, validChoices);
+        if (validChoices.length === 0) {
+          setError(`Для вопроса "${q.text || 'без названия'}" типа "${q.question_type}" требуется хотя бы один непустой вариант ответа.`);
+          return;
+        }
+      }
+    }
+
     const surveyData = {
-      title,
-      questions: questions.map(q => ({
-        text: q.text,
-        question_type: q.type,
-        choices: q.type === 'text' || q.type === 'rating' || q.type === 'yesno' ? [] : q.choices.filter(c => c)
-      }))
+      title: title.replace(/^"|"$/g, ''),
+      is_active: isActive,
+      questions: questions.map(q => {
+        const questionData = {
+          text: q.text,
+          question_type: q.question_type,
+          choices: q.question_type === 'text' || q.question_type === 'rating' || q.question_type === 'yesno' ? [] : q.choices.filter(c => c.trim() !== '')
+        };
+        console.log(`Processed question ${q.text || 'без названия'}:`, questionData);
+        return questionData;
+      })
     };
+    console.log("Sending survey data:", surveyData);
+
     axios.post('http://127.0.0.1:8000/api/surveys/create/', surveyData, {
       headers: { Authorization: `Token ${token}` }
-    }).then(() => navigate('/'))
-      .catch(err => console.error(err));
+    })
+      .then(response => {
+        console.log("Survey created:", response.data);
+        navigate('/');
+      })
+      .catch(err => {
+        console.error("Error creating survey:", err.response?.data);
+        setError('Ошибка при создании опроса: ' + JSON.stringify(err.response?.data || 'Сервер недоступен'));
+      });
   };
 
   return (
     <Card className="p-4">
       <h1>Создать новый опрос</h1>
+      {error && <div className="alert alert-danger">{error}</div>}
       <Form onSubmit={handleSubmit}>
         <Form.Group className="mb-3">
           <Form.Label>Название опроса</Form.Label>
@@ -76,27 +106,43 @@ function SurveyCreate({ token }) {
             required
           />
         </Form.Group>
+        <Form.Group className="mb-3">
+          <Form.Check
+            type="checkbox"
+            label="Активен"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+        </Form.Group>
 
         {questions.map((question, qIndex) => (
           <Card key={qIndex} className="question-box mb-4 p-3">
             <Row>
               <Col md={8}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Вопрос {qIndex + 1}</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={question.text}
-                    onChange={(e) => handleQuestionChange(qIndex, 'text', e.target.value)}
-                    required
-                  />
+                <Form.Group className="mb-3 d-flex align-items-center">
+                  <Form.Label className="me-3">Вопрос {qIndex + 1}</Form.Label>
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    onClick={() => removeQuestion(qIndex)}
+                    disabled={questions.length === 1}
+                  >
+                    Удалить вопрос
+                  </Button>
                 </Form.Group>
+                <Form.Control
+                  type="text"
+                  value={question.text}
+                  onChange={(e) => handleQuestionChange(qIndex, 'text', e.target.value)}
+                  required
+                />
               </Col>
               <Col md={4}>
                 <Form.Group className="mb-3">
                   <Form.Label>Тип вопроса</Form.Label>
                   <Form.Select
-                    value={question.type}
-                    onChange={(e) => handleQuestionChange(qIndex, 'type', e.target.value)}
+                    value={question.question_type}
+                    onChange={(e) => handleQuestionChange(qIndex, 'question_type', e.target.value)}
                   >
                     <option value="radio">Один выбор</option>
                     <option value="checkbox">Множественный выбор</option>
@@ -108,7 +154,7 @@ function SurveyCreate({ token }) {
                 </Form.Group>
               </Col>
             </Row>
-            {(question.type === 'radio' || question.type === 'checkbox' || question.type === 'ranking') && (
+            {(question.question_type === 'radio' || question.question_type === 'checkbox' || question.question_type === 'ranking') && (
               <div>
                 <Form.Label>Варианты ответа</Form.Label>
                 {question.choices.map((choice, cIndex) => (
@@ -118,6 +164,8 @@ function SurveyCreate({ token }) {
                       value={choice}
                       onChange={(e) => handleChoiceChange(qIndex, cIndex, e.target.value)}
                       className="me-2"
+                      required
+                      placeholder={`Вариант ${cIndex + 1}`}
                     />
                     <Button
                       variant="outline-danger"
