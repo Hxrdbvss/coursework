@@ -5,7 +5,7 @@ from django.db.models import JSONField
 class Survey(models.Model):
     title = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
-    author = models.ForeignKey(User, on_delete=models.CASCADE)  # Добавь, если отсутствует
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):

@@ -8,17 +8,16 @@ function SurveyEdit({ token }) {
   const [questions, setQuestions] = useState([]);
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState('');
-  const { id } = useParams(); // Получаем ID опроса из URL
+  const { id } = useParams(); 
   const navigate = useNavigate();
 
-  // Загрузка данных опроса при монтировании компонента
   useEffect(() => {
     axios.get(`http://127.0.0.1:8000/api/surveys/${id}/`, {
       headers: { Authorization: `Token ${token}` }
     })
       .then(response => {
         setTitle(response.data.title);
-        setQuestions(response.data.questions || []); // Убеждаемся, что questions — массив
+        setQuestions(response.data.questions || []); 
         setIsActive(response.data.is_active);
       })
       .catch(err => {

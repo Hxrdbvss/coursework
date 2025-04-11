@@ -11,7 +11,7 @@ function Login({ setToken, setUser }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Sending:", { username, password }); // Логируем отправляемые данные
+    console.log("Sending:", { username, password }); 
     axios.post('http://127.0.0.1:8000/api/login/', { username, password }, {
       headers: { 'Content-Type': 'application/json' }
     })
@@ -22,7 +22,7 @@ function Login({ setToken, setUser }) {
         navigate('/');
       })
       .catch(err => {
-        console.error("Error response:", err.response); // Логируем ошибку
+        console.error("Error response:", err.response); 
         setError(err.response?.data?.non_field_errors || 'Ошибка входа');
       });
   };

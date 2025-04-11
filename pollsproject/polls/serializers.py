@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Survey, Question, Choice, Answer  # Добавлен Answer
+from .models import Survey, Question, Choice, Answer  
 from django.contrib.auth.models import User
 
 class ChoiceSerializer(serializers.ModelSerializer):
@@ -56,7 +56,7 @@ class SurveySerializer(serializers.ModelSerializer):
 
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Answer  # Теперь Answer определён благодаря импорту
+        model = Answer  
         fields = ['question', 'choice', 'text_answer']
 
 class UserSerializer(serializers.ModelSerializer):
