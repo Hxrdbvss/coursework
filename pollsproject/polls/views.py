@@ -98,7 +98,7 @@ class SurveyDetail(generics.RetrieveUpdateDestroyAPIView):
         if self.get_object().author != request.user:
             return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
         return super().delete(request, *args, **kwargs)
-        
+
 class SurveyEdit(generics.RetrieveUpdateAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer

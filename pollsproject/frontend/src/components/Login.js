@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Button, Alert, Card } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 function Login({ setToken, setUser }) {
@@ -8,21 +8,28 @@ function Login({ setToken, setUser }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = e => {
     e.preventDefault();
-    console.log("Sending:", { username, password }); // Логируем отправляемые данные
-    axios.post('http://127.0.0.1:8000/api/login/', { username, password }, {
-      headers: { 'Content-Type': 'application/json' }
-    })
+    console.log('Sending:', { username, password });
+    axios
+      .post(
+        'http://127.0.0.1:8000/api/login/',
+        { username, password },
+        {
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
       .then(response => {
         setToken(response.data.token);
         setUser({ username: response.data.username, id: response.data.user_id });
         localStorage.setItem('token', response.data.token);
-        navigate('/');
+        navigate(from, { replace: true });
       })
       .catch(err => {
-        console.error("Error response:", err.response); // Логируем ошибку
+        console.error('Error response:', err.response);
         setError(err.response?.data?.non_field_errors || 'Ошибка входа');
       });
   };
@@ -37,7 +44,7 @@ function Login({ setToken, setUser }) {
           <Form.Control
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={e => setUsername(e.target.value)}
             required
           />
         </Form.Group>
@@ -46,7 +53,7 @@ function Login({ setToken, setUser }) {
           <Form.Control
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
           />
         </Form.Group>

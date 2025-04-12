@@ -18,9 +18,10 @@ function App() {
 
   useEffect(() => {
     if (token) {
-      axios.get('http://127.0.0.1:8000/api/surveys/', {
-        headers: { Authorization: `Token ${token}` }
-      })
+      axios
+        .get('http://127.0.0.1:8000/api/surveys/', {
+          headers: { Authorization: `Token ${token}` },
+        })
         .then(response => {
           setUser(response.data.user);
         })
@@ -48,17 +49,44 @@ function App() {
             path="/"
             element={
               token ? (
-                <SurveyList token={token} user={user} handleLogout={handleLogout} />
+                <SurveyList token={token} setToken={setToken} />
               ) : (
                 <Navigate to="/login" />
               )
             }
           />
-          <Route path="/survey/:id" element={<SurveyDetail token={token} />} />
-          <Route path="/create" element={<SurveyCreate token={token} />} />
-          <Route path="/edit/:id" element={<SurveyEdit token={token} />} />
-          <Route path="/add-questions/:id" element={<AddQuestions token={token} />} />
-          <Route path="/profile/:username" element={<Profile token={token} />} />
+          <Route
+            path="/survey/:id"
+            element={<SurveyDetail token={token} setToken={setToken} />}
+          />
+          <Route
+            path="/create"
+            element={
+              token ? <SurveyCreate token={token} /> : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/edit/:id"
+            element={
+              token ? <SurveyEdit token={token} /> : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/add-questions/:id"
+            element={
+              token ? <AddQuestions token={token} /> : <Navigate to="/login" />
+            }
+          />
+          <Route
+            path="/profile/:username"
+            element={
+              token ? (
+                <Profile token={token} setToken={setToken} setUser={setUser} />
+              ) : (
+                <Navigate to="/login" />
+              )
+            }
+          />
         </Routes>
       </Container>
     </Router>

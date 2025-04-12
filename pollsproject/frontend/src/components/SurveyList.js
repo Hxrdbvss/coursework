@@ -3,9 +3,9 @@ import { ListGroup, Button, Modal } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-function SurveyList({ token, setToken }) {  // Убрали user, добавили setToken
+function SurveyList({ token, setToken }) {  
   const [surveys, setSurveys] = useState([]);
-  const [user, setUser] = useState(null);  // Для хранения данных пользователя
+  const [user, setUser] = useState(null);  
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [surveyToDelete, setSurveyToDelete] = useState(null);
   const navigate = useNavigate();
@@ -16,8 +16,8 @@ function SurveyList({ token, setToken }) {  // Убрали user, добавил
     })
       .then(response => {
         console.log("Survey list data:", response.data);
-        setSurveys(response.data.surveys);  // Извлекаем surveys
-        setUser(response.data.user);        // Извлекаем user
+        setSurveys(response.data.surveys);  
+        setUser(response.data.user);        
       })
       .catch(err => {
         console.error("Error loading surveys:", err.response?.data);
@@ -38,9 +38,9 @@ function SurveyList({ token, setToken }) {  // Убрали user, добавил
   };
 
   const handleLogout = () => {
-    setToken(null);  // Очищаем токен
-    localStorage.removeItem('token');  // Удаляем токен из localStorage
-    navigate('/login');  // Перенаправляем на страницу входа
+    setToken(null);  
+    localStorage.removeItem('token');  
+    navigate('/login');  
   };
 
   return (

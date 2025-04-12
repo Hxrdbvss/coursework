@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, ListGroup, Button, Form, Modal, Accordion, Alert } from 'react-bootstrap';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 
-function Profile({ token }) {
+function Profile({ token, setToken, setUser }) {
   const { username } = useParams();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -15,11 +15,15 @@ function Profile({ token }) {
 
   useEffect(() => {
     const fetchProfile = () => {
+      if (!token) {
+        navigate('/login', { state: { from: `/profile/${username}` } });
+        return;
+      }
       axios
         .get(`http://127.0.0.1:8000/api/profile/${username}/`, {
           headers: { Authorization: `Token ${token}` },
         })
-        .then((response) => {
+        .then(response => {
           setProfile(response.data.user);
           setSurveys(response.data.surveys);
           setFormData({
@@ -27,29 +31,39 @@ function Profile({ token }) {
             last_name: response.data.user.last_name || '',
             email: response.data.user.email || '',
           });
+          setUser({ username: response.data.user.username, id: response.data.user.id });
         })
-        .catch((err) => {
+        .catch(err => {
           setError(
             'Ошибка загрузки профиля: ' + (err.response?.data?.detail || 'Сервер недоступен')
           );
+          if (err.response?.status === 401) {
+            setToken(null);
+            localStorage.removeItem('token');
+            navigate('/login', { state: { from: `/profile/${username}` } });
+          }
         });
     };
 
     fetchProfile();
-  }, [username, token]);
+  }, [username, token, navigate, setToken, setUser]);
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = e => {
     e.preventDefault();
     axios
-      .put('http://127.0.0.1:8000/api/profile/edit/', formData, {
-        headers: { Authorization: `Token ${token}` },
-      })
-      .then((response) => {
+      .put(
+        'http://127.0.0.1:8000/api/profile/edit/',
+        formData,
+        {
+          headers: { Authorization: `Token ${token}` },
+        }
+      )
+      .then(response => {
         setProfile({ ...profile, ...response.data });
         setEditMode(false);
         alert('Профиль успешно обновлён!');
       })
-      .catch((err) => {
+      .catch(err => {
         setError(
           'Ошибка обновления профиля: ' + (err.response?.data?.detail || 'Сервер недоступен')
         );
@@ -62,18 +76,27 @@ function Profile({ token }) {
         headers: { Authorization: `Token ${token}` },
       })
       .then(() => {
+        setToken(null);
+        setUser(null);
         localStorage.removeItem('token');
         navigate('/login');
         alert('Профиль успешно удалён');
       })
-      .catch((err) => {
+      .catch(err => {
         setError(
           'Ошибка удаления профиля: ' + (err.response?.data?.detail || 'Сервер недоступен')
         );
       });
   };
 
-  const handleInputChange = (e) => {
+  const handleLogout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  const handleInputChange = e => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -139,8 +162,11 @@ function Profile({ token }) {
             <Button variant="primary" onClick={() => setEditMode(true)} className="me-2">
               Редактировать профиль
             </Button>
-            <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
+            <Button variant="danger" onClick={() => setShowDeleteModal(true)} className="me-2">
               Удалить профиль
+            </Button>
+            <Button variant="danger" onClick={handleLogout}>
+              Выйти
             </Button>
           </div>
         </>
@@ -148,7 +174,7 @@ function Profile({ token }) {
       <h3 className="text-center mb-4">Пройденные опросы</h3>
       {surveys.length > 0 ? (
         <Accordion>
-          {surveys.map((survey) => (
+          {surveys.map(survey => (
             <Accordion.Item key={survey.id} eventKey={survey.id.toString()}>
               <Accordion.Header>{survey.title}</Accordion.Header>
               <Accordion.Body>
@@ -156,7 +182,8 @@ function Profile({ token }) {
                   <ListGroup>
                     {survey.answers.map((answer, index) => (
                       <ListGroup.Item key={index}>
-                        <strong>Вопрос:</strong> {answer.question}<br />
+                        <strong>Вопрос:</strong> {answer.question}
+                        <br />
                         <strong>Ответ:</strong>{' '}
                         {typeof answer.answer === 'object'
                           ? JSON.stringify(answer.answer)
@@ -168,8 +195,8 @@ function Profile({ token }) {
                   <p>Ответы отсутствуют</p>
                 )}
                 <Button
-                  as="a"
-                  href={`/survey/${survey.id}`}
+                  as={Link}
+                  to={`/survey/${survey.id}`}
                   variant="primary"
                   className="mt-3"
                 >
@@ -182,6 +209,11 @@ function Profile({ token }) {
       ) : (
         <p className="text-center">Пользователь пока не участвовал в опросах.</p>
       )}
+      <div className="text-center mt-4">
+        <Button as={Link} to="/" variant="secondary">
+          Назад к списку опросов
+        </Button>
+      </div>
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Подтверждение удаления</Modal.Title>
