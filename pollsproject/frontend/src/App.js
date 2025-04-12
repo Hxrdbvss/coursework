@@ -18,13 +18,14 @@ function App() {
 
   useEffect(() => {
     if (token) {
-      console.log("Checking token validity with:", token); // Добавим лог
       axios.get('http://127.0.0.1:8000/api/surveys/', {
         headers: { Authorization: `Token ${token}` }
       })
-        .then(response => console.log("Surveys loaded:", response.data))
+        .then(response => {
+          setUser(response.data.user);
+        })
         .catch(err => {
-          console.error("Token invalid:", err.response?.status);
+          console.error('Token invalid:', err.response?.status);
           setToken(null);
           localStorage.removeItem('token');
         });
@@ -53,7 +54,7 @@ function App() {
               )
             }
           />
-          <Route path="/survey/:id" element={<SurveyDetail token={token} setToken={setToken} />} />
+          <Route path="/survey/:id" element={<SurveyDetail token={token} />} />
           <Route path="/create" element={<SurveyCreate token={token} />} />
           <Route path="/edit/:id" element={<SurveyEdit token={token} />} />
           <Route path="/add-questions/:id" element={<AddQuestions token={token} />} />

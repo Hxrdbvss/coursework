@@ -1,44 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
-import { Form, Button, Row, Col } from 'react-bootstrap';
+import { Form, Button, Row, Col, Alert } from 'react-bootstrap';
 
 function SurveyDetail({ token }) {
   const [survey, setSurvey] = useState(null);
   const [error, setError] = useState('');
   const [answers, setAnswers] = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const { id } = useParams();
 
   useEffect(() => {
-    axios.get(`http://127.0.0.1:8000/api/surveys/${id}/`, {
-      headers: { Authorization: `Token ${token}` }
-    })
-      .then(response => {
+    axios
+      .get(`http://127.0.0.1:8000/api/surveys/${id}/`, {
+        headers: { Authorization: `Token ${token}` },
+      })
+      .then((response) => {
         console.log("Survey data:", response.data);
         setSurvey(response.data);
         const initialAnswers = {};
-        response.data.questions.forEach(q => {
+        response.data.questions.forEach((q) => {
           if (q.question_type === 'checkbox') initialAnswers[q.id] = [];
           else if (q.question_type === 'text') initialAnswers[q.id] = '';
           else if (q.question_type === 'rating') initialAnswers[q.id] = 1;
           else if (q.question_type === 'yesno') initialAnswers[q.id] = null;
-          else if (q.question_type === 'ranking') initialAnswers[q.id] = q.choices.map(c => c.id);
+          else if (q.question_type === 'ranking') initialAnswers[q.id] = q.choices.map((c) => c.id);
           else initialAnswers[q.id] = null; // radio
         });
         setAnswers(initialAnswers);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Error loading survey:", err.response?.data);
         setError('Не удалось загрузить опрос: ' + (err.response?.data?.detail || 'Сервер недоступен'));
       });
   }, [id, token]);
 
   const handleAnswerChange = (questionId, value, type) => {
-    setAnswers(prev => {
+    setAnswers((prev) => {
       if (type === 'checkbox') {
         const currentChoices = prev[questionId] || [];
         if (currentChoices.includes(value)) {
-          return { ...prev, [questionId]: currentChoices.filter(c => c !== value) };
+          return { ...prev, [questionId]: currentChoices.filter((c) => c !== value) };
         } else {
           return { ...prev, [questionId]: [...currentChoices, value] };
         }
@@ -48,7 +50,7 @@ function SurveyDetail({ token }) {
   };
 
   const handleRankingChange = (questionId, choiceId, direction) => {
-    setAnswers(prev => {
+    setAnswers((prev) => {
       const ranking = [...prev[questionId]];
       const index = ranking.indexOf(choiceId);
       if (direction === 'up' && index > 0) {
@@ -60,36 +62,57 @@ function SurveyDetail({ token }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const answersData = Object.keys(answers).map(questionId => {
-      const question = survey.questions.find(q => q.id === parseInt(questionId));
-      return {
-        question: questionId,
-        choice: question.question_type === 'radio' ? answers[questionId] : null,
-        text_answer: question.question_type === 'text' ? answers[questionId] : null,
-        choices: question.question_type === 'checkbox' ? answers[questionId] : null,
-        rating_answer: question.question_type === 'rating' ? answers[questionId] : null,
-        yesno_answer: question.question_type === 'yesno' ? answers[questionId] : null,
-        ranking_answer: question.question_type === 'ranking' ? answers[questionId] : null
-      };
+    const answersData = [];
+    Object.keys(answers).forEach((questionId) => {
+        const question = survey.questions.find((q) => q.id === parseInt(questionId));
+        if (!question) {
+            console.error(`Question ${questionId} not found in survey ${survey.id}`);
+            return;
+        }
+        console.log(`Processing question ${questionId}, type: ${question.question_type}`);
+        const baseAnswer = { question: parseInt(questionId), survey: survey.id };
+        if (question.question_type === 'radio' && answers[questionId]) {
+            answersData.push({ ...baseAnswer, choice: parseInt(answers[questionId]) });
+        } else if (question.question_type === 'checkbox' && answers[questionId]?.length > 0) {
+            answersData.push(...answers[questionId].map(choiceId => ({ ...baseAnswer, choice: parseInt(choiceId) })));
+        } else if (question.question_type === 'text' && answers[questionId]) {
+            answersData.push({ ...baseAnswer, text_answer: answers[questionId] });
+        } else if (question.question_type === 'rating' && answers[questionId]) {
+            answersData.push({ ...baseAnswer, rating_answer: parseInt(answers[questionId]) });
+        } else if (question.question_type === 'yesno' && answers[questionId] !== null) {
+            answersData.push({ ...baseAnswer, yesno_answer: answers[questionId] });
+        } else if (question.question_type === 'ranking' && answers[questionId]) {
+            answersData.push({ ...baseAnswer, ranking_answer: answers[questionId] });
+        }
     });
-    console.log("Submitting answers:", answersData);
-    axios.post(`http://127.0.0.1:8000/api/surveys/${id}/submit/`, answersData, {
-      headers: { Authorization: `Token ${token}` }
-    })
-      .then(response => {
-        console.log("Answers submitted:", response.data);
-        alert("Ответы успешно отправлены!");
-      })
-      .catch(err => {
-        console.error("Error submitting answers:", err.response?.data);
-        setError('Ошибка при отправке ответов: ' + (err.response?.data?.detail || 'Сервер недоступен'));
-      });
-  };
 
-  if (error) return <div className="alert alert-danger">{error}</div>;
+    if (answersData.length === 0) {
+        console.error('No answers to submit');
+        return;
+    }
+
+    console.log('Sending answers:', JSON.stringify(answersData, null, 2));
+    try {
+        const response = await axios.post(
+            `http://127.0.0.1:8000/api/surveys/${survey.id}/submit/`,
+            answersData,
+            {
+                headers: {
+                    'Authorization': `Token ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+        console.log('Answers submitted:', response.data);
+    } catch (error) {
+        console.error('Error submitting answers:', error.response?.data || error.message);
+    }
+};
+  if (error) return <Alert variant="danger">{error}</Alert>;
   if (!survey) return <div>Загрузка...</div>;
+  if (submitted) return <Alert variant="success">Ответы успешно отправлены! <Link to="/">Вернуться к списку</Link></Alert>;
 
   return (
     <div className="container mt-4">
@@ -170,7 +193,7 @@ function SurveyDetail({ token }) {
               {question.question_type === 'ranking' && question.choices && question.choices.length > 0 && (
                 <div>
                   {answers[question.id]?.map((choiceId, index) => {
-                    const choice = question.choices.find(c => c.id === choiceId);
+                    const choice = question.choices.find((c) => c.id === choiceId);
                     return (
                       <Row key={choice.id} className="mb-2">
                         <Col>{choice.text}</Col>

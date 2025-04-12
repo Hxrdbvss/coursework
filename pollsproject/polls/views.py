@@ -23,8 +23,8 @@ class SubmitAnswers(generics.CreateAPIView):
         survey = get_object_or_404(Survey, pk=survey_id)
         if not survey.is_active:
             return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
-
-        answers_data = request.data  # Ожидаем список ответов
+        
+        answers_data = request.data  
         for answer_data in answers_data:
             answer_data['survey'] = survey_id
             answer_data['user'] = request.user.id
@@ -33,19 +33,18 @@ class SubmitAnswers(generics.CreateAPIView):
             serializer.save()
         return Response({"message": "Ответы сохранены"}, status=status.HTTP_201_CREATED)
 
-
 class SurveyList(generics.ListAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
-    permission_classes = [IsAuthenticated]  # Требуем авторизацию
+    permission_classes = [AllowAny]  
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
-        user_serializer = UserSerializer(request.user)  # Сериализуем текущего пользователя
+        user_data = UserSerializer(request.user).data if request.user.is_authenticated else None
         return Response({
             'surveys': serializer.data,
-            'user': user_serializer.data
+            'user': user_data
         })
 
 class RegisterView(APIView):
@@ -56,10 +55,9 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             token, created = Token.objects.get_or_create(user=user)
-            login(request, user)  # Автоматический вход для сессии
+            login(request, user)
             return Response({'token': token.key, 'user_id': user.id, 'username': user.username})
         return Response(serializer.errors, status=400)
-
 
 class LoginView(ObtainAuthToken):
     def post(self, request, *args, **kwargs):
@@ -67,8 +65,12 @@ class LoginView(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
-        login(request, user)  # Автоматический вход для сессии
-        return Response({'token': token.key, 'user_id': user.id, 'username': user.username})
+        login(request, user)
+        return Response({
+            'token': token.key,
+            'user_id': user.id,
+            'username': user.username
+        })
 
 class SurveyCreate(generics.CreateAPIView):
     queryset = Survey.objects.all()
@@ -81,13 +83,22 @@ class SurveyCreate(generics.CreateAPIView):
 class SurveyDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def put(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
         if self.get_object().author != request.user:
             return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
         return super().put(request, *args, **kwargs)
 
+    def delete(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        if self.get_object().author != request.user:
+            return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+        return super().delete(request, *args, **kwargs)
+        
 class SurveyEdit(generics.RetrieveUpdateAPIView):
     queryset = Survey.objects.all()
     serializer_class = SurveySerializer
@@ -96,12 +107,81 @@ class SurveyEdit(generics.RetrieveUpdateAPIView):
     def perform_update(self, serializer):
         serializer.save(author=self.request.user)
 
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, username):
+        try:
+            user = User.objects.get(username=username)
+            surveys = Survey.objects.filter(answers__user=user).distinct()
+            survey_data = []
+            for survey in surveys:
+                answers = Answer.objects.filter(survey=survey, user=user).select_related('question', 'choice')
+                answer_data = [
+                    {
+                        'question_id': answer.question.id,
+                        'question': answer.question.text,
+                        'answer': self.get_answer_value(answer),
+                        'submitted_at': answer.submitted_at
+                    } for answer in answers
+                ]
+                survey_data.append({
+                    'id': survey.id,
+                    'title': survey.title,
+                    'answers': answer_data
+                })
+            return Response({
+                'user': {
+                    'username': user.username,
+                    'full_name': user.get_full_name() or None,
+                    'email': user.email,
+                    'date_joined': user.date_joined,
+                    'is_staff': user.is_staff
+                },
+                'surveys': survey_data
+            })
+        except User.DoesNotExist:
+            return Response({'detail': 'Пользователь не найден'}, status=status.HTTP_404_NOT_FOUND)
+
+    def get_answer_value(self, answer):
+        """Возвращает строковое представление ответа в зависимости от типа вопроса."""
+        question_type = answer.question.question_type
+        if question_type == 'text':
+            return answer.text_answer or '-'
+        elif question_type in ('radio', 'checkbox'):
+            return answer.choice.text if answer.choice else '-'
+        elif question_type == 'ranking':
+            return str(answer.ranking_answer) if answer.ranking_answer else '-'
+        elif question_type == 'rating':
+            return str(answer.rating_answer) if answer.rating_answer is not None else '-'
+        elif question_type == 'yesno':
+            return 'Да' if answer.yesno_answer else 'Нет' if answer.yesno_answer is not None else '-'
+        return '-'
+
+class ProfileEditView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ProfileDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response({'detail': 'Профиль успешно удалён'}, status=status.HTTP_204_NO_CONTENT)
+
 @api_view(['POST'])
 def add_questions(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
     if survey.author != request.user:
         return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
-    
     for q_data in request.data:
         question = Question.objects.create(
             survey=survey,
@@ -120,89 +200,56 @@ def profile_view(request, username):
     return Response({
         "user": {
             "username": user.username,
-            "full_name": user.get_full_name(),
+            "full_name": user.get_full_name() or None,
             "date_joined": user.date_joined,
             "is_staff": user.is_staff
         },
         "surveys": SurveySerializer(surveys, many=True).data
     })
 
-@api_view(['POST'])
-def submit_answers(request, survey_id):
-    survey = get_object_or_404(Survey, pk=survey_id)
-    if not survey.is_active:
-        return Response({"detail": "Survey is not active"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    for answer_data in request.data:
-        question = get_object_or_404(Question, pk=answer_data['question'], survey=survey)
-        if question.question_type == 'radio':
-            choice = get_object_or_404(Choice, pk=answer_data['choice'], question=question)
-            Answer.objects.create(question=question, choice=choice, user=request.user)
-        elif question.question_type == 'checkbox':
-            for choice_id in answer_data['choices']:
-                choice = get_object_or_404(Choice, pk=choice_id, question=question)
-                Answer.objects.create(question=question, choice=choice, user=request.user)
-        elif question.question_type == 'text':
-            Answer.objects.create(question=question, text_answer=answer_data['text_answer'], user=request.user)
-        elif question.question_type == 'rating':
-            Answer.objects.create(question=question, rating_answer=answer_data['rating_answer'], user=request.user)
-        elif question.question_type == 'yesno':
-            Answer.objects.create(question=question, yesno_answer=answer_data['yesno_answer'], user=request.user)
-        elif question.question_type == 'ranking':
-            Answer.objects.create(question=question, ranking_answer=answer_data['ranking_answer'], user=request.user)
-    return Response({"detail": "Answers submitted"}, status=status.HTTP_201_CREATED)
-
-# Обычные представления
 def index(request):
-    surveys = Survey.objects.all()  # Можно добавить .filter(is_active=True)
+    surveys = Survey.objects.all()
     return render(request, 'polls/index.html', {'surveys': surveys})
-
 
 def detail(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
     user_answers = Answer.objects.filter(question__survey=survey, user=request.user) if request.user.is_authenticated else None
-
-    # Подготовка данных для отображения ответов
     answers_with_ranking = []
     if user_answers:
         for answer in user_answers:
             answer_data = {'answer': answer}
             if answer.question.question_type == 'ranking' and answer.ranking_answer:
-                ranked_choices = [answer.question.choices.get(id=choice_id).text for choice_id in answer.ranking_answer]
-                answer_data['ranked_choices'] = ranked_choices
+                try:
+                    ranked_choices = [answer.question.choices.get(id=int(choice_id)).text for choice_id in answer.ranking_answer]
+                    answer_data['ranked_choices'] = ranked_choices
+                except (ValueError, TypeError, Choice.DoesNotExist):
+                    answer_data['ranked_choices'] = ['Ошибка формата ранжирования']
             answers_with_ranking.append(answer_data)
-
     context = {
         'survey': survey,
         'user_answers': answers_with_ranking,
     }
-
     if request.method == 'POST' and not user_answers and survey.is_active:
         if not request.POST:
             context['error_message'] = 'Форма пуста'
             return render(request, 'polls/detail.html', context)
-
         questions = survey.questions.all()
         for question in questions:
             error = save_answer(question, request, request.user)
             if error:
                 context['error_message'] = error
                 return render(request, 'polls/detail.html', context)
-
         context['show_thanks'] = True
-
     return render(request, 'polls/detail.html', context)
 
-
 def create_survey(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
     if request.method == 'POST':
         title = request.POST.get('title')
         if not title:
             return render(request, 'polls/create_survey.html', {'error': 'Введите название опроса'})
-
-        survey = Survey.objects.create(title=title, author=request.user if request.user.is_authenticated else None)
-        
-        # Используем formset-подход для вопросов
+        survey = Survey.objects.create(title=title, author=request.user)
         question_formset = QuestionFormSet(request.POST, prefix='questions')
         if question_formset.is_valid():
             for question_form in question_formset:
@@ -221,14 +268,13 @@ def create_survey(request):
             return redirect('polls:index')
         else:
             return render(request, 'polls/create_survey.html', {'question_formset': question_formset, 'title': title})
-
     question_formset = QuestionFormSet(prefix='questions')
     return render(request, 'polls/create_survey.html', {'question_formset': question_formset})
 
-
 def add_questions(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
-    
+    if not request.user.is_authenticated:
+        return redirect('login')
     if request.method == 'POST':
         question_formset = QuestionFormSet(request.POST, prefix='questions')
         if question_formset.is_valid():
@@ -256,14 +302,12 @@ def add_questions(request, survey_id):
             return redirect('polls:index')
     else:
         question_formset = QuestionFormSet(prefix='questions')
-
     choice_formsets = [ChoiceFormSet(prefix=f'choices-questions-{i}') for i in range(question_formset.total_form_count())]
     return render(request, 'polls/add_questions.html', {
         'survey': survey,
         'question_formset': question_formset,
         'choice_formsets': choice_formsets,
     })
-
 
 def register(request):
     if request.method == 'POST':
@@ -276,7 +320,6 @@ def register(request):
         form = UserCreationForm()
     return render(request, 'polls/register.html', {'form': form})
 
-
 def profile(request, username):
     profile = get_object_or_404(User, username=username)
     user_answers = Answer.objects.filter(user=profile).select_related('question__survey')
@@ -287,20 +330,16 @@ def profile(request, username):
     }
     return render(request, 'polls/profile.html', context)
 
-
 def edit(request, survey_id):
     survey = get_object_or_404(Survey, pk=survey_id)
-    if request.user != survey.author and request.user.is_authenticated:  # Проверка прав
+    if request.user != survey.author and request.user.is_authenticated:
         return redirect('polls:index')
-
     if request.method == 'POST':
         if 'delete_survey' in request.POST:
             survey.delete()
             return redirect('polls:index')
-
         survey_form = SurveyForm(request.POST, instance=survey)
         question_formset = QuestionFormSet(request.POST, prefix='questions', queryset=survey.questions.all())
-
         if survey_form.is_valid() and question_formset.is_valid():
             survey_form.save()
             for question_form in question_formset:
@@ -320,7 +359,6 @@ def edit(request, survey_id):
     else:
         survey_form = SurveyForm(instance=survey)
         question_formset = QuestionFormSet(prefix='questions', queryset=survey.questions.all())
-
     choice_formsets = [ChoiceFormSet(prefix=f'choices-questions-{i}', queryset=Question.objects.get(id=form.instance.id).choices.all() if form.instance.id else ChoiceFormSet().queryset) for i, form in enumerate(question_formset)]
     return render(request, 'polls/edit.html', {
         'survey': survey,

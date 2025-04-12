@@ -56,10 +56,46 @@ class SurveySerializer(serializers.ModelSerializer):
 
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Answer  # Теперь Answer определён благодаря импорту
-        fields = ['question', 'choice', 'text_answer']
+        model = Answer
+        fields = [
+            'survey', 'user', 'question', 'choice',
+            'text_answer', 'ranking_answer', 'rating_answer', 'yesno_answer',
+            'submitted_at'
+        ]
+        read_only_fields = ['submitted_at']
+
+    def validate(self, data):
+        question = data['question']
+        if question.survey != data['survey']:
+            raise serializers.ValidationError("Вопрос не относится к этому опросу")
+
+        # Проверка соответствия типа вопроса и данных
+        question_type = question.question_type
+        if question_type == 'text' and not data.get('text_answer'):
+            raise serializers.ValidationError("Текстовый ответ обязателен")
+        elif question_type == 'radio' and not data.get('choice'):
+            raise serializers.ValidationError("Выбор обязателен для вопросов с одним вариантом")
+        elif question_type == 'checkbox' and not data.get('choice'):
+            raise serializers.ValidationError("Выбор обязателен для вопросов с множественным выбором")
+        elif question_type == 'ranking' and not data.get('ranking_answer'):
+            raise serializers.ValidationError("Ранжирование обязательно")
+        elif question_type == 'rating' and not data.get('rating_answer'):
+            raise serializers.ValidationError("Оценка обязательна")
+        elif question_type == 'yesno' and data.get('yesno_answer') is None:
+            raise serializers.ValidationError("Ответ 'Да/Нет' обязателен")
+        
+        return data
 
 class UserSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name']
+        extra_kwargs = {
+            'username': {'read_only': True},  
+            'id': {'read_only': True},
+        }
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or None
