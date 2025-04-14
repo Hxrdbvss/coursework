@@ -25,7 +25,7 @@ function SurveyDetail({ token }) {
                     else if (q.question_type === 'rating') initialAnswers[q.id] = 1;
                     else if (q.question_type === 'yesno') initialAnswers[q.id] = null;
                     else if (q.question_type === 'ranking') initialAnswers[q.id] = q.choices.map((c) => c.id);
-                    else initialAnswers[q.id] = null; // radio
+                    else initialAnswers[q.id] = null; 
                 });
                 setAnswers(initialAnswers);
             } catch (err) {

@@ -69,7 +69,6 @@ class AnswerSerializer(serializers.ModelSerializer):
         if question.survey != data['survey']:
             raise serializers.ValidationError("Вопрос не относится к этому опросу")
 
-        # Проверка соответствия типа вопроса и данных
         question_type = question.question_type
         if question_type == 'text' and not data.get('text_answer'):
             raise serializers.ValidationError("Текстовый ответ обязателен")

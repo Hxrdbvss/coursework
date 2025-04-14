@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Button, Alert, Card } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom'; // Добавляем Link
+import { Link, useNavigate } from 'react-router-dom'; 
 import axios from 'axios';
 
 function Register({ setToken, setUser }) {

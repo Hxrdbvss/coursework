@@ -27,10 +27,8 @@ class ChoiceForm(forms.ModelForm):
         labels = {'text': 'Вариант ответа'}
         widgets = {'text': forms.TextInput(attrs={'class': 'form-control'})}
 
-# Formset для вопросов
 QuestionFormSet = formset_factory(QuestionForm, extra=0, can_delete=True)
 
-# Базовый Formset для вариантов ответа
 class BaseChoiceFormSet(BaseFormSet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
